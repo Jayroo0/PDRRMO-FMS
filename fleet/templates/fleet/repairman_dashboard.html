@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PDRRMO | Land Assets Mechanical Workbench</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { background-color: #FFFFFF; }
+        .nav-header { background-color: #1A365D; border-bottom: 4px solid #0EA5E9; }
+        .table-theme th { background-color: #0EA5E9 !important; color: white !important; }
+        
+        /* 🌟 Custom Styling for smooth slider colors matching dashboard status rules */
+        .custom-switch .form-check-input {
+            width: 3rem;
+            height: 1.5rem;
+            cursor: pointer;
+            background-color: #10B981; /* Default/Unchecked: Green for Operational */
+            border-color: #10B981;
+        }
+        .custom-switch .form-check-input:checked {
+            background-color: #DC2626; /* Checked: Red/Amber for Maintenance */
+            border-color: #DC2626;
+        }
+        .custom-switch .form-check-input:focus {
+            box-shadow: none;
+            border-color: rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark nav-header px-4 py-2 shadow-sm mb-4">
+        <span class="navbar-brand fw-bold text-white"><i class="fa-solid fa-screwdriver-wrench text-warning"></i> Land Assets Mechanical Workbench</span>
+        <a href="{% url 'dashboard_portal:login' %}" class="btn btn-sm btn-outline-light fw-bold px-3">
+            <i class="fa-solid fa-house me-1"></i> Log Out
+        </a>
+    </nav>
+
+    <div class="container-fluid px-4">
+        
+        <h3 class="fw-bold mb-3" style="color: #1A365D;">Land Vehicle Work Orders</h3>
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-0 border bg-white rounded">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-theme">
+                        <tr>
+                            <th>Equipment Unit</th>
+                            <th>Identifier Tag</th>
+                            <th>Current Status</th>
+                            <th class="text-end text-sm-start" style="padding-right: 2.5rem;">Action Diagnostic Toggle Override</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for vehicle in vehicles %}
+                        <tr>
+                            <td class="fw-bold text-dark">
+                                {{ vehicle.model_name }} 
+                                <span class="badge bg-secondary font-monospace text-uppercase ms-1">{{ vehicle.vehicle_type.name }}</span>
+                            </td>
+                            <td><code class="bg-light text-dark border px-2 py-1 rounded font-monospace">{{ vehicle.plate_number }}</code></td>
+                            
+                            <td>
+                                {% if vehicle.status == 'DEPLOYED' %}
+                                    <div class="border px-3 py-1.5 rounded d-inline-flex align-items-center gap-2 bg-light text-dark fw-semibold" style="min-width: 160px; height: 38px; font-size: 0.875rem;">
+                                        <span style="height: 10px; width: 10px; background-color: #0284C7; border-radius: 50%; display: inline-block;"></span>
+                                        DEPLOYED
+                                    </div>
+                                {% elif vehicle.status == 'MAINTENANCE' %}
+                                    <div class="border px-3 py-1.5 rounded d-inline-flex align-items-center gap-2 bg-light text-dark fw-semibold" style="min-width: 160px; height: 38px; font-size: 0.875rem;">
+                                        <span style="height: 10px; width: 10px; background-color: #DC2626; border-radius: 50%; display: inline-block;"></span>
+                                        MAINTENANCE
+                                    </div>
+                                {% else %}
+                                    <div class="border px-3 py-1.5 rounded d-inline-flex align-items-center gap-2 bg-light text-dark fw-semibold" style="min-width: 160px; height: 38px; font-size: 0.875rem;">
+                                        <span style="height: 10px; width: 10px; background-color: #10B981; border-radius: 50%; display: inline-block;"></span>
+                                        OPERATIONAL
+                                    </div>
+                                {% endif %}
+                            </td>
+                            
+                            <td>
+                                <div class="d-flex align-items-center gap-4">
+                                    {% if vehicle.status == 'MAINTENANCE' %}
+                                        <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="m-0" onsubmit="return captureWorkshopDisposalRemarks(this);">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                            <input type="hidden" name="action_type" value="FLAG_DISPOSAL">
+                                            <input type="hidden" name="disposal_remarks" id="workshop_remarks_input_{{ vehicle.id }}" value="">
+                                            
+                                            <button type="submit" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 fw-bold px-2.5 py-1.5 uppercase text-xs tracking-wider cursor-pointer shadow-sm">
+                                                <i class="fa-solid fa-trash-can"></i>
+                                                <span>Move For Disposal</span>
+                                            </button>
+                                        </form>
+                                    {% endif %}
+
+                                    <form method="POST" action="{% url 'dashboard_portal:repairman_dashboard' %}" class="form-check form-switch custom-switch d-flex align-items-center gap-3 m-0">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                        <input type="hidden" name="action_type" value="STATUS_TOGGLE">
+                                        
+                                        <input type="hidden" name="status" id="real_status_{{ vehicle.id }}" value="{% if vehicle.status == 'MAINTENANCE' %}OPERATIONAL{% else %}MAINTENANCE{% endif %}">
+                                        
+                                        <input 
+                                            type="checkbox" 
+                                            class="form-check-input mt-0"
+                                            {% if vehicle.status == 'MAINTENANCE' %}checked{% endif %}
+                                            onchange="this.form.submit()"
+                                        >
+                                        
+                                        <span class="fw-bold text-uppercase tracking-wider text-muted small" style="min-width: 110px;">
+                                            {% if vehicle.status == 'MAINTENANCE' %}
+                                                <span class="text-danger">Maintenance</span>
+                                            {% else %}
+                                                <span class="text-success">Operational</span>
+                                            {% endif %}
+                                        </span>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    {% if messages %}
+    <div id="alert-container" class="fixed-bottom p-4 d-flex flex-column align-items-end z-50 space-y-3 w-full max-w-sm" style="left: auto; top: auto; right: 0; bottom: 0;">
+        {% for message in messages %}
+            <div class="alert-box p-4 rounded-xl shadow-lg border text-sm font-medium d-flex align-items-center justify-content-between bg-white backdrop-blur-md mb-2" style="min-width: 300px; {% if message.tags == 'success' %}border-color: #10B981; color: #065F46; background-color: rgba(240, 253, 250, 0.95);{% else %}border-color: #F59E0B; color: #78350F; background-color: rgba(254, 243, 199, 0.95);{% endif %}">
+                <div class="d-flex align-items-center gap-2">
+                    {% if message.tags == 'success' %}
+                        <svg style="width: 20px; height: 20px; color: #10B981;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    {% else %}
+                        <svg style="width: 20px; height: 20px; color: #F59E0B;" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    {% endif %}
+                    <span>{{ message }}</span>
+                </div>
+                
+                <button onclick="this.parentElement.remove()" class="btn-close ms-3" style="font-size: 0.75rem; shadow: none; cursor: pointer;"></button>
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %} 
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const alertContainer = document.getElementById("alert-container");
+            
+            if (alertContainer) {
+                setTimeout(function() {
+                    alertContainer.style.transition = "all 0.5s ease-in-out";
+                    alertContainer.style.opacity = '0';
+                    alertContainer.style.transform = 'translate(50px, 20px)';
+                    
+                    setTimeout(function() {
+                        alertContainer.remove();
+                    }, 500); 
+                }, 4000);
+            }
+        });
+
+        // 🚨 Intercepts form submission to mandate structural justification input reasons
+        function captureWorkshopDisposalRemarks(form) {
+            const vehicleId = form.querySelector('input[name="vehicle_id"]').value;
+            const remarksInput = document.getElementById('workshop_remarks_input_' + vehicleId);
+            
+            const userRemarks = prompt("🚨 WORKSHOP ATTENTION: Please specify the unrepairable fault or justification for decommissioning this asset:");
+            
+            if (userRemarks === null) {
+                return false; // Action dropped by operator
+            }
+            
+            if (userRemarks.trim() === "") {
+                alert("⚠️ Action Denied: Workshop diagnosis remarks are required to initiate disposal workflows.");
+                return false;
+            }
+            
+            remarksInput.value = userRemarks;
+            return true;
+        }
+    </script>
+
+    <script>
+    // 🌟 Handles the checkbox conversion safely before form submission
+    function submitToggle(checkboxElement, vehicleId) {
+        const hiddenInput = document.getElementById('status_submit_' + vehicleId);
+        
+        // If the box is checked, we want to push it into MAINTENANCE.
+        // If the box is unchecked, we force the string value back to OPERATIONAL!
+        if (checkboxElement.checked) {
+            hiddenInput.value = "MAINTENANCE";
+        } else {
+            hiddenInput.value = "OPERATIONAL";
+        }
+        
+        // Dispatches the complete payload straight to views.py
+        checkboxElement.form.submit();
+    }
+</script>
+
+</body>
+</html>

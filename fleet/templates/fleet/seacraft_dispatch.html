@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDRRMO | Seacraft Dispatch & Control </title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --brand-blue: #0f172a;       /* Deep Corporate Navy */
+            --pdrrmo-blue: #0284C7;      /* Maritime Sky Blue Theme */
+            --brand-bg: #f1f5f9;          /* Light Canvas Background */
+            --text-main: #0f172a;
+        }
+
+        body {
+            background-color: var(--brand-bg);
+            color: var(--text-main);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        .navbar-brand-custom {
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            color: #ffffff !important;
+        }
+
+        .panel-header-custom {
+            padding: 15px 20px;
+            color: white;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+
+        /* Nav Tabs Custom Layout Styling */
+        .custom-tabs .nav-link {
+            color: rgba(255, 255, 255, 0.75);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 0;
+            transition: all 0.2s ease;
+        }
+        .custom-tabs .nav-link:hover {
+            color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.1);
+            border: none;
+        }
+        .custom-tabs .nav-link.active {
+            color: #0284C7 !important;
+            background-color: #ffffff !important;
+            border: none;
+            font-weight: 700;
+        }
+
+        .table-theme th {
+            color: #ffffff !important;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            padding: 12px 15px;
+        }
+
+        .table td {
+            padding: 14px 15px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+
+        #alert-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1060;
+            width: 100%;
+            max-width: 350px;
+            transition: all 0.5s ease-in-out;
+        }
+        .custom-alert-box {
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(6px);
+            border-radius: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg shadow-sm sticky-top" style="background-color: var(--brand-blue);">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand navbar-brand-custom d-flex align-items-center" href="#">
+                SEACRAFT DISPATCH & CONTROL
+            </a>
+            
+            <div class="d-flex align-items-center gap-3">
+    <span class="text-white-50 small d-none d-md-inline">
+        <i class="fa-solid fa-tower-cell text-success me-1"></i> Connected to Dispatch Server
+    </span>
+    
+    {% if user.is_authenticated %}
+    <span class="text-white small fw-bold bg-dark bg-opacity-25 px-2 py-1 rounded-2 border border-secondary-subtle">
+        <i class="fa-solid fa-user-shield text-info me-1"></i> {{ user.username }}
+    </span>
+    {% endif %}
+    
+    <button type="button" class="btn btn-sm btn-outline-danger px-3 text-uppercase fw-bold" data-bs-toggle="modal" data-bs-target="#logoutModal">
+        <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
+    </button>
+</div>
+        </div>
+    </nav>
+
+    <main class="container-fluid py-5 px-4" style="max-width: 1600px;">
+        
+        <div class="mb-4">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1 text-uppercase small font-monospace fw-bold">
+                    <li class="breadcrumb-item"><a href="#" class="text-decoration-none text-secondary">Operations Portal</a></li>
+                    <li class="breadcrumb-item text-dark active" aria-current="page">Maritime Operations</li>
+                </ol>
+            </nav>
+            <h2 class="fw-bold m-0" style="letter-spacing: -0.03em; color: var(--brand-blue);">Seacraft Command Center</h2>
+        </div>
+
+        <div class="card shadow-sm border-0 mb-5">
+            <div class="panel-header-custom p-0 border-0" style="background-color: #0284C7;">
+                <div class="d-flex justify-content-between align-items-center px-4 pt-3 pb-2">
+                    <span><i class="fa-solid fa-ship me-2 text-warning"></i>MARITIME DIVISION (SEACRAFTS)</span>
+                    <span class="badge bg-light text-dark font-monospace">REGISTRY: {{ sea_crafts.count }}</span>
+                </div>
+                
+                <ul class="nav nav-tabs custom-tabs border-0 px-3" id="seacraftTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="all-crafts-tab" data-bs-toggle="tab" data-bs-target="#all-crafts" type="button" role="tab" aria-controls="all-crafts" aria-selected="true"><i class="fa-solid fa-layer-group me-1"></i> All Sea Crafts</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="deployed-crafts-tab" data-bs-toggle="tab" data-bs-target="#deployed-crafts" type="button" role="tab" aria-controls="deployed-crafts" aria-selected="false"><i class="fa-solid fa-location-dot me-1"></i> Active Deployments</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="standby-crafts-tab" data-bs-toggle="tab" data-bs-target="#standby-crafts" type="button" role="tab" aria-controls="standby-crafts" aria-selected="false"><i class="fa-solid fa-warehouse me-1"></i> Standby & Maintenance</button>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="card-body p-0 border bg-white rounded-bottom table-responsive">
+                <div class="tab-content" id="seacraftTabContent">
+                    
+                    <div class="tab-pane fade show active" id="all-crafts" role="tabpanel" aria-labelledby="all-crafts-tab">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-theme">
+                                <tr>
+                                    <th style="background-color: #0284C7 !important;">Equipment Designation Model</th>
+                                    <th style="background-color: #0284C7 !important;">Hull ID Tag</th>
+                                    <th style="background-color: #0284C7 !important;">Current Status</th>
+                                    <th style="background-color: #0284C7 !important;">Assigned Personnel Operator</th>
+                                    <th style="width: 25%; background-color: #0284C7 !important;">Action Assignment Update</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for craft in sea_crafts %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ craft.model_name }}</strong>
+                                        <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                    </td>
+                                    <td><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></td>
+                                    <td>
+                                        {% if craft.status == 'DEPLOYED' %}
+                                            <span class="badge bg-primary">DEPLOYED</span>
+                                        {% elif craft.status == 'MAINTENANCE' %}
+                                            <span class="badge bg-danger">MAINTENANCE</span>
+                                        {% elif craft.status == 'PENDING_DISPOSAL' %}
+                                            <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
+                                        {% else %}
+                                            <span class="badge bg-success">OPERATIONAL</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="d-flex gap-2 m-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="action" value="set_driver">
+                                            <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                            
+                                            <select name="driver_id" 
+                                                    class="form-select form-select-sm fw-bold border-secondary-subtle" 
+                                                    style="max-width: 200px; cursor: pointer;"
+                                                    onchange="this.form.submit();"
+                                                    {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
+                                                <option value="">-- Standby / Unassigned --</option>
+                                                {% if craft.assigned_driver %}
+                                                    <option value="{{ craft.assigned_driver.id }}" selected>
+                                                        👤 {{ craft.assigned_driver.name }} {% if craft.status == 'DEPLOYED' %}(In Field){% endif %}
+                                                    </option>
+                                                {% endif %}
+                                                {% for driver in drivers %}
+                                                    {% if craft.assigned_driver.id != driver.id %}
+                                                        <option value="{{ driver.id }}">👤 {{ driver.name }}</option>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            </select>
+                                        </form>
+                                    </td>
+                                    <td>
+                                        {% if craft.status == 'OPERATIONAL' %}
+                                            <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                <input type="hidden" name="action" value="deploy_vehicle">
+                                                <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fa-solid fa-rocket me-1"></i> DEPLOY</button>
+                                            </form>
+                                        {% elif craft.status == 'DEPLOYED' %}
+                                            <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                <input type="hidden" name="action" value="return_vehicle">
+                                                <button type="submit" class="btn btn-sm btn-warning w-100"><i class="fa-solid fa-arrow-rotate-left me-1"></i> RETURN</button>
+                                            </form>
+                                        {% elif craft.status == 'MAINTENANCE' %}
+                                            <div class="d-flex gap-1">
+                                                {% if craft.assigned_driver %}
+                                                <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0 w-50">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                    <input type="hidden" name="action" value="set_driver">
+                                                    <input type="hidden" name="driver_id" value="">
+                                                    <button type="submit" class="btn btn-xs btn-danger w-100 py-1 font-monospace" style="font-size: 0.72rem;"><i class="fa-solid fa-user-slash"></i> RESET</button>
+                                                </form>
+                                                {% endif %}
+                                                <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0 {% if craft.assigned_driver %}w-50{% else %}w-100{% endif %}" onsubmit="return captureDispatchDisposalRemarks(this);">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                    <input type="hidden" name="action" value="FLAG_DISPOSAL">
+                                                    <input type="hidden" name="disposal_remarks" id="dispatch_remarks_input_{{ craft.id }}" value="">
+                                                    <button type="submit" class="btn btn-xs btn-outline-danger w-100 py-1 font-monospace" style="font-size: 0.72rem;"><i class="fa-solid fa-trash-can"></i> DISPOSAL</button>
+                                                </form>
+                                            </div>
+                                        {% elif craft.status == 'PENDING_DISPOSAL' %}
+                                            <div class="d-flex gap-1">
+                                                <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0 w-50">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                    <input type="hidden" name="action" value="decline_disposal">
+                                                    <button type="submit" class="btn btn-xs btn-outline-secondary w-100 py-1 font-monospace" style="font-size: 0.72rem;" title="Decline and return to Under Maintenance"><i class="fa-solid fa-wrench"></i> REPAIR</button>
+                                                </form>
+                                                <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0 w-50">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                    <input type="hidden" name="action" value="confirm_disposal">
+                                                    <button type="submit" class="btn btn-xs btn-danger w-100 py-1 font-monospace" style="font-size: 0.72rem;" title="Confirm asset disposal clearance"><i class="fa-solid fa-box-archive"></i> ARCHIVE</button>
+                                                </form>
+                                            </div>
+                                        {% else %}
+                                            <button type="button" class="btn btn-sm btn-secondary w-100" disabled><i class="fa-solid fa-ban me-1"></i> LOCKED</button>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-center py-4 text-muted fw-semibold">No marine operations fleet assets registered in system mapping rows.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="tab-pane fade" id="deployed-crafts" role="tabpanel" aria-labelledby="deployed-crafts-tab">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-theme">
+                                <tr>
+                                    <th style="background-color: #0284C7 !important;">Equipment Designation Model</th>
+                                    <th style="background-color: #0284C7 !important;">Hull ID Tag</th>
+                                    <th style="background-color: #0284C7 !important;">Current Status</th>
+                                    <th style="background-color: #0284C7 !important;">Assigned Personnel Operator</th>
+                                    <th style="width: 25%; background-color: #0284C7 !important;">Action Assignment Update</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for craft in sea_crafts %}
+                                    {% if craft.status == 'DEPLOYED' %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ craft.model_name }}</strong>
+                                            <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                        </td>
+                                        <td><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></td>
+                                        <td><span class="badge bg-primary">DEPLOYED</span></td>
+                                        <td>
+                                            <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="d-flex gap-2 m-0">
+                                                {% csrf_token %}
+                                                <select class="form-select form-select-sm fw-bold border-secondary-subtle" style="max-width: 200px;" disabled>
+                                                    {% if craft.assigned_driver %}
+                                                        <option>👤 {{ craft.assigned_driver.name }} (In Field)</option>
+                                                    {% else %}
+                                                        <option>-- Standby / Unassigned --</option>
+                                                    {% endif %}
+                                                </select>
+                                            </form>
+                                        </td>
+                                        <td>
+                                            <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                <input type="hidden" name="action" value="return_vehicle">
+                                                <button type="submit" class="btn btn-sm btn-warning w-100"><i class="fa-solid fa-arrow-rotate-left me-1"></i> RETURN</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="tab-pane fade" id="standby-crafts" role="tabpanel" aria-labelledby="standby-crafts-tab">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-theme">
+                                <tr>
+                                    <th style="background-color: #0284C7 !important;">Equipment Designation Model</th>
+                                    <th style="background-color: #0284C7 !important;">Hull ID Tag</th>
+                                    <th style="background-color: #0284C7 !important;">Current Status</th>
+                                    <th style="background-color: #0284C7 !important;">Assigned Personnel Operator</th>
+                                    <th style="width: 25%; background-color: #0284C7 !important;">Action Assignment Update</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for craft in sea_crafts %}
+                                    {% if craft.status == 'OPERATIONAL' or craft.status == 'MAINTENANCE' or craft.status == 'PENDING_DISPOSAL' %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ craft.model_name }}</strong>
+                                            <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                        </td>
+                                        <td><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></td>
+                                        <td>
+                                            {% if craft.status == 'MAINTENANCE' %}
+                                                <span class="badge bg-danger">MAINTENANCE</span>
+                                            {% elif craft.status == 'PENDING_DISPOSAL' %}
+                                                <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
+                                            {% else %}
+                                                <span class="badge bg-success">OPERATIONAL</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="d-flex gap-2 m-0">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="action" value="set_driver">
+                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                
+                                                <select name="driver_id" 
+                                                        class="form-select form-select-sm fw-bold border-secondary-subtle" 
+                                                        style="max-width: 200px; cursor: pointer;"
+                                                        onchange="this.form.submit();"
+                                                        {% if craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
+                                                    <option value="">-- Standby / Unassigned --</option>
+                                                    {% if craft.assigned_driver %}
+                                                        <option value="{{ craft.assigned_driver.id }}" selected>👤 {{ craft.assigned_driver.name }}</option>
+                                                    {% endif %}
+                                                    {% for driver in drivers %}
+                                                        {% if craft.assigned_driver.id != driver.id %}
+                                                            <option value="{{ driver.id }}">👤 {{ driver.name }}</option>
+                                                        {% endif %}
+                                                    {% endfor %}
+                                                </select>
+                                            </form>
+                                        </td>
+                                        <td>
+                                            {% if craft.status == 'OPERATIONAL' %}
+                                                <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                    <input type="hidden" name="action" value="deploy_vehicle">
+                                                    <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fa-solid fa-rocket me-1"></i> DEPLOY</button>
+                                                </form>
+                                            {% elif craft.status == 'MAINTENANCE' %}
+                                                <div class="d-flex gap-1">
+                                                    {% if craft.assigned_driver %}
+                                                    <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0 w-50">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                        <input type="hidden" name="action" value="set_driver">
+                                                        <input type="hidden" name="driver_id" value="">
+                                                        <button type="submit" class="btn btn-sm btn-danger w-100"><i class="fa-solid fa-user-slash me-1"></i> RESET</button>
+                                                    </form>
+                                                    {% endif %}
+                                                    <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0 {% if craft.assigned_driver %}w-50{% else %}w-100{% endif %}" onsubmit="return captureDispatchDisposalRemarks(this);">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                        <input type="hidden" name="action" value="FLAG_DISPOSAL">
+                                                        <input type="hidden" name="disposal_remarks" id="dispatch_remarks_input_{{ craft.id }}" value="">
+                                                        <button type="submit" class="btn btn-sm btn-outline-danger w-100"><i class="fa-solid fa-trash-can me-1"></i> DISPOSAL</button>
+                                                    </form>
+                                                </div>
+                                            {% elif craft.status == 'PENDING_DISPOSAL' %}
+                                                <div class="d-flex gap-1">
+                                                    <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0 w-50">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                        <input type="hidden" name="action" value="decline_disposal">
+                                                        <button type="submit" class="btn btn-xs btn-outline-secondary w-100 py-1 font-monospace" style="font-size: 0.72rem;" title="Decline and return to Under Maintenance"><i class="fa-solid fa-wrench"></i> REPAIR</button>
+                                                    </form>
+                                                    <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0 w-50">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                        <input type="hidden" name="action" value="confirm_disposal">
+                                                        <button type="submit" class="btn btn-xs btn-danger w-100 py-1 font-monospace" style="font-size: 0.72rem;" title="Confirm asset disposal clearance"><i class="fa-solid fa-box-archive"></i> ARCHIVE</button>
+                                                    </form>
+                                                </div>
+                                            {% else %}
+                                                <button type="button" class="btn btn-sm btn-secondary w-100" disabled><i class="fa-solid fa-ban me-1"></i> LOCKED</button>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title text-dark fw-bold" id="logoutModalLabel">Confirm Security Sign Out</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-dark">
+                    Are you sure you want to disconnect from the <strong>Fleet Command Management Environment</strong>? Unsaved status inputs could revert.
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel Session</button>
+                    <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger fw-bold px-3">Confirm Logout</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div id="alert-container" class="d-flex flex-column gap-2">
+            {% for message in messages %}
+                <div class="alert custom-alert-box p-3 border shadow-lg d-flex align-items-center justify-content-between text-dark {% if message.tags == 'success' %}border-success bg-success-subtle{% else %}border-warning bg-warning-subtle{% endif %}" role="alert">
+                    <div class="d-flex align-items-center gap-2">
+                        {% if message.tags == 'success' %}
+                            <i class="fa-solid fa-circle-check text-success fs-5"></i>
+                        {% else %}
+                            <i class="fa-solid fa-triangle-exclamation text-warning fs-5"></i>
+                        {% endif %}
+                        <span class="small fw-medium">{{ message }}</span>
+                    </div>
+                    
+                    <button type="button" onclick="this.parentElement.remove()" class="btn-close ms-3 small shadow-none" style="font-size: 0.75rem;" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %} 
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const alertContainer = document.getElementById("alert-container");
+            
+            if (alertContainer) {
+                setTimeout(function() {
+                    alertContainer.style.opacity = '0';
+                    alertContainer.style.transform = 'translate(50px, 20px)';
+                    
+                    setTimeout(function() {
+                        alertContainer.remove();
+                    }, 500); 
+                }, 4000);
+            }
+        });
+
+        function captureDispatchDisposalRemarks(form) {
+            const id = form.querySelector('input[name="vehicle_id"]').value;
+            const targetRemarks = document.getElementById('dispatch_remarks_input_' + id);
+            
+            const feedback = prompt("🚨 ATTENTION DISPATCH: Provide structural assessment notes or justification parameters before sending this hull entry for decommissioning:");
+            
+            if (feedback === null) {
+                return false; 
+            }
+            
+            if (feedback.trim() === "") {
+                alert("⚠️ Warning: A clear logistics remarks string value is required to authorize decommissioning actions.");
+                return false;
+            }
+            
+            targetRemarks.value = feedback;
+            return true;
+        }
+    </script>
+
+</body>
+</html>

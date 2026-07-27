@@ -1,0 +1,18 @@
+/* Change the top header navigation bar color to dark blue-gray */
+#header {
+    background: #1e293b !important;
+    color: #f8fafc !important;
+}
+
+/* Make the data tables look rounded with subtle shadows */
+.module {
+    border-radius: 8px !important;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+/* Style our custom action button variables */
+option[value^="deactivate_users"] {
+    color: #ef4444;
+    font-weight: bold;
+}

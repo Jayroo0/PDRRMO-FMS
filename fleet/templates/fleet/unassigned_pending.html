@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Pending Verification | PDRRMO Fleet Control</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 font-sans h-screen flex flex-col justify-between">
+
+    <header class="bg-[#0f172a] text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <div class="flex items-center space-x-3">
+            <div class="bg-sky-600 p-2 rounded-lg text-white font-bold tracking-wider text-sm">
+                PDRRMO
+            </div>
+            <span class="text-lg font-semibold tracking-wide uppercase">Fleet Control System</span>
+        </div>
+        <div>
+            <form action="{% url 'dashboard_portal:custom_user_logout' %}" method="post" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="border border-gray-400 hover:border-red-500 hover:bg-red-600/10 hover:text-red-500 text-gray-300 px-4 py-2 rounded transition text-sm font-medium uppercase tracking-wider cursor-pointer">
+                    Exit System
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <main class="flex-grow flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full overflow-hidden border border-gray-200">
+            
+            <div class="bg-[#0284c7] text-white px-6 py-4 flex items-center space-x-3">
+                <svg class="w-6 h-6 animate-pulse" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <h2 class="font-bold uppercase tracking-wider">Access Registry Status</h2>
+            </div>
+
+            <div class="p-8 text-center space-y-6">
+                <div class="flex justify-center">
+                    <div class="rounded-full bg-sky-50 p-4 text-sky-600">
+                        <svg class="w-12 h-12 animate-spin" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h1 class="text-2xl font-extrabold text-gray-800 tracking-tight">System Initialization Pending</h1>
+                    
+                    <p class="text-base text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-4 font-medium">
+                        Your account is now under process by the administrator.
+                    </p>
+
+                    <div class="pt-2">
+                        <a href="{% url 'dashboard_portal:homepage' %}" class="inline-flex items-center justify-center w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold uppercase tracking-wider text-sm py-3 px-4 rounded-lg shadow transition duration-150 ease-in-out gap-2 cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                            </svg>
+                            View Homepage
+                        </a>
+                    </div>
+                </div>
+
+                <div class="border-t border-gray-100 pt-2 text-xs text-gray-400">
+                    Active Session Security Handle: <span class="font-mono bg-gray-100 px-1 py-0.5 rounded text-gray-500">@{{ request.user.username }}</span>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <footer class="bg-gray-50 text-center py-4 border-t border-gray-200 text-xs text-gray-500 font-medium tracking-wide">
+        Provincial Disaster Risk Reduction and Management Office Operations Network &copy; 2026
+    </footer>
+
+</body>
+</html>

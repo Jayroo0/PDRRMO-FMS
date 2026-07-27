@@ -1,0 +1,30 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block content %}
+<p>You are requesting a secure override to pull the following disposed fleet items out of dead archives:</p>
+<ul>
+    {% for obj in queryset %}
+        <li><strong>{{ obj.model_name }}</strong> (Plate ID: {{ obj.plate_number|default:"None" }})</li>
+    {% endfor %}
+</ul>
+<hr>
+<form method="post">
+    {% csrf_token %}
+    <div>
+        <label for="superuser_password" style="display:block; margin-bottom: 10px; font-weight: bold; color: #b91c1c;">
+            ⚠️ Enter your Admin Account password to confirm security authorization:
+        </label>
+        <input type="password" id="superuser_password" name="superuser_password" class="vPasswordField" required style="padding: 8px; width: 320px; margin-bottom: 20px; border:1px solid #cbd5e1; border-radius:4px;">
+    </div>
+    {% for obj in queryset %}
+        <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk_value }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="recover_disposed_vehicle">
+    <input type="hidden" name="post" value="yes">
+    <div class="submit-row" style="margin-left: 0; padding-left: 0; display: flex; gap: 10px;">
+        <input type="submit" value="Verify & Re-Activate Fleet Assets" class="default" style="background-color: #0f172a; border-radius: 4px; padding: 10px 15px;">
+        <a href="#" onclick="window.history.back(); return false;" class="button cancel-link" style="padding: 10px 15px;">Abort Action</a>
+    </div>
+</form>
+{% endblock %}

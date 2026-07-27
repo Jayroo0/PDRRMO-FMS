@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maritime Vessels Dashboard | PDRRMO</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen flex flex-col justify-between">
+
+    <header class="bg-[#0f172a] text-white px-6 py-4 flex justify-between items-center shadow-md">
+        <div class="flex items-center space-x-3">
+            <div class="bg-sky-600 p-2 rounded-lg text-white font-bold text-sm tracking-wider">
+                PDRRMO
+            </div>
+            <h1 class="text-lg font-semibold uppercase tracking-wide">Seacraft Mechanical Workbench</h1>
+        </div>
+        <div class="flex items-center space-x-4">
+            <form action="{% url 'dashboard_portal:custom_user_logout' %}" method="post" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="border border-gray-400 hover:border-red-500 hover:bg-red-600/10 hover:text-red-500 text-gray-300 px-4 py-2 rounded transition text-sm font-medium uppercase cursor-pointer">
+                    Logout
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <main class="flex-grow p-6 max-w-7xl w-full mx-auto space-y-4">
+        
+        <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="font-bold text-gray-800 uppercase tracking-wider text-sm">Active Marine Fleet Logs</h2>
+                <span class="bg-sky-100 text-sky-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase">
+                    Total Tracked: {{ vehicles.count }}
+                </span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-600 uppercase font-bold tracking-wider text-xs border-b border-gray-200">
+                            <th class="px-6 py-3">Vessel Model Name</th>
+                            <th class="px-6 py-3">Registry Index / Plate</th>
+                            <th class="px-6 py-3">Assigned Operator</th>
+                            <th class="px-6 py-3">Current Condition Status</th>
+                            <th class="px-6 py-3 text-right pr-10">Operational State Controls</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 text-gray-700">
+                        {% for craft in vehicles %}
+                            <tr class="hover:bg-gray-50/70 transition">
+                                <td class="px-6 py-4 font-semibold text-gray-900">{{ craft.model_name }}</td>
+                                <td class="px-6 py-4 font-mono text-gray-500 font-medium">{{ craft.plate_number }}</td>
+                                <td class="px-6 py-4">
+                                    {% if craft.assigned_driver %}
+                                        <span class="text-gray-800 font-medium">{{ craft.assigned_driver.name }}</span>
+                                    {% else %}
+                                        <span class="text-gray-400 italic font-normal">Standby No Driver</span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4">
+                                    {% if craft.status == 'MAINTENANCE' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 uppercase border border-amber-200">
+                                            Maintenance Inbound
+                                        </span>
+                                    {% elif craft.status == 'OPERATIONAL' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 uppercase border border-emerald-200">
+                                            Ready Operational
+                                        </span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 uppercase border border-blue-200">
+                                            {{ craft.status }}
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <div class="inline-flex items-center justify-end gap-4 m-0">
+                                        
+                                        {% if craft.status == 'MAINTENANCE' %}
+                                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="m-0" onsubmit="return captureDisposalRemarks(this);">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                <input type="hidden" name="action_type" value="FLAG_DISPOSAL">
+                                                <input type="hidden" name="disposal_remarks" id="remarks_input_{{ craft.id }}" value="">
+                                                <button type="submit" class="inline-flex items-center space-x-1 border border-red-200 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white px-2.5 py-1.5 rounded text-xs font-bold uppercase transition shadow-xs cursor-pointer">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                                    </svg>
+                                                    <span>Move For Disposal</span>
+                                                </button>
+                                            </form>
+                                        {% endif %}
+
+                                        <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="inline-flex items-center m-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                            <input type="hidden" name="action_type" value="STATUS_TOGGLE">
+                                            <input type="hidden" name="status" value="{% if craft.status == 'MAINTENANCE' %}OPERATIONAL{% else %}MAINTENANCE{% endif %}">
+                                            
+                                            <label class="relative inline-flex items-center cursor-pointer select-none">
+                                                <input 
+                                                    type="checkbox" 
+                                                    {% if craft.status == 'MAINTENANCE' %}checked{% endif %}
+                                                    onchange="this.form.submit()" 
+                                                    class="sr-only peer"
+                                                >
+                                                
+                                                <div class="w-11 h-6 bg-emerald-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                                                
+                                                <span class="ms-3 text-xs font-bold uppercase tracking-wider text-gray-700 min-w-[100px] text-left">
+                                                    {% if craft.status == 'MAINTENANCE' %}
+                                                        <span class="text-amber-600">Maintenance</span>
+                                                    {% else %}
+                                                        <span class="text-emerald-600">Operational</span>
+                                                    {% endif %}
+                                                </span>
+                                            </label>
+                                        </form>
+
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="px-6 py-12 text-center text-gray-400 font-medium italic">
+                                    No maritime tracking vessels registered inside this sector map layer database.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+    </main>
+
+    
+{% if messages %}
+    <div id="alert-container" class="fixed bottom-4 right-4 z-50 space-y-3 w-full max-w-sm transition-all duration-500 ease-in-out">
+        {% for message in messages %}
+            <div class="alert-box p-4 rounded-xl shadow-2xl border text-sm font-medium flex items-center justify-between bg-white backdrop-blur-md {% if message.tags == 'success' %}border-emerald-500 text-emerald-900 bg-emerald-50/95{% else %}border-amber-500 text-amber-900 bg-amber-50/95{% endif %}">
+                <div class="flex items-center space-x-2">
+                    {% if message.tags == 'success' %}
+                        <svg class="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                    {% else %}
+                        <svg class="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    {% endif %}
+                    <span>{{ message }}</span>
+                </div>
+                
+                <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-gray-600 ml-3 cursor-pointer transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %} 
+
+<script>
+    // Interceptor to prompt operator for validation remarks
+    function captureDisposalRemarks(form) {
+        const vehicleId = form.querySelector('input[name="vehicle_id"]').value;
+        const remarksInput = document.getElementById('remarks_input_' + vehicleId);
+        
+        const userRemarks = prompt("🚨 ATTENTION: Please enter the evaluation reason for decommissioning this marine vessel:");
+        
+        if (userRemarks === null) {
+            return false; // Cancel action execution completely
+        }
+        
+        if (userRemarks.trim() === "") {
+            alert("⚠️ Action Aborted: Validation remarks are mandatory to flag a vessel for disposal.");
+            return false;
+        }
+        
+        remarksInput.value = userRemarks;
+        return true;
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        const alertContainer = document.getElementById("alert-container");
+        
+        if (alertContainer) {
+            setTimeout(function() {
+                alertContainer.style.opacity = '0';
+                alertContainer.style.transform = 'translate(50px, 20px)';
+                
+                setTimeout(function() {
+                    alertContainer.remove();
+                }, 500); 
+            }, 4000);
+        }
+    });
+</script>
+
+    <footer class="bg-gray-50 text-center py-4 border-t border-gray-200 text-xs text-gray-500 font-medium tracking-wide">
+        Provincial Disaster Risk Reduction and Management Office Operations Network &copy; 2026
+    </footer>
+
+</body>
+</html>
