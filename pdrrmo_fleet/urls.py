@@ -2,18 +2,18 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from fleet import views
+from django.views.generic import RedirectView
+from django.http import HttpResponseRedirect
+
+
+def admin_redirect_to_login(request):
+    return HttpResponseRedirect('/login/')
+
 
 urlpatterns = [
-    path('', include('fleet.urls')),
+    path('', include(('fleet.urls', 'dashboard_portal'), namespace='dashboard_portal')),
     path('admin/', admin.site.urls),
-    # This automatically forwards root traffic directly to your fleet app's urls.py
-    
-    path('', views.homepage, name='homepage'),
-
+    path('admin/fleet/vehicletype/', RedirectView.as_view(url='/admin/', permanent=False), name='admin_vehicletype_redirect'),
+    path('admin/login/', admin_redirect_to_login),
     path('login/', auth_views.LoginView.as_view(), name='login'),
-    path('portal/dispatch/', include('fleet.urls')),
-    path('portal/', include('fleet.urls', namespace='dashboard_portal')),
 ]
-# inside the respective urls.py file
-app_name = 'dashboard_portal'

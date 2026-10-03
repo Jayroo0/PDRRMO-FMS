@@ -31,9 +31,19 @@
 <body>
     <nav class="navbar navbar-dark nav-header px-4 py-2 shadow-sm mb-4">
         <span class="navbar-brand fw-bold text-white"><i class="fa-solid fa-screwdriver-wrench text-warning"></i> Land Assets Mechanical Workbench</span>
-        <a href="{% url 'dashboard_portal:login' %}" class="btn btn-sm btn-outline-light fw-bold px-3">
-            <i class="fa-solid fa-house me-1"></i> Log Out
-        </a>
+        <div class="d-flex align-items-center gap-3">
+            {% if user.is_authenticated %}
+                <div class="px-3 py-1.5 rounded-full bg-sky-600/20 text-white text-xs font-bold uppercase tracking-wide border border-sky-400/50">
+                    {{ user.first_name|default:user.username }} {{ user.last_name|default:'' }}
+                </div>
+            {% endif %}
+            <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="d-inline m-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-light fw-bold px-3">
+                    <i class="fa-solid fa-right-from-bracket me-1"></i> Log Out
+                </button>
+            </form>
+        </div>
     </nav>
 
     <div class="container-fluid px-4">

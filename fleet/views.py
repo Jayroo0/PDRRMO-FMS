@@ -14,19 +14,25 @@ from .models import Vehicle, VehicleType, Driver, VehicleAsset, OperatorProfile
 # fleet/views.py
 
 def login_view(request):
-    # Your view logic here
-    username = request.POST.get('username')
-    password = request.POST.get('password')
-    user = authenticate(username=username, password=password)
-    
-    if user is not None:
-       login(request, user)
-            # FIX HERE: Redirect using the namespace:name format
-       return redirect('dashboard_portal:dashboard_portal') 
-    else:
-            messages.error(request, "ACCESS DENIED: Invalid Username or Password.")
-            pass
-    
+    if request.user.is_authenticated:
+        return redirect('dashboard_portal:dashboard_portal')
+
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        if not username or not password:
+            messages.error(request, "ACCESS DENIED: Username and password are required.")
+            return render(request, 'fleet/login.html')
+
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            login(request, user)
+            return redirect('dashboard_portal:dashboard_portal')
+
+        messages.error(request, "ACCESS DENIED: Invalid Username or Password.")
+
     return render(request, 'fleet/login.html')
 
 
@@ -186,9 +192,10 @@ def repairman_dashboard(request):
     username_lower = user.username.lower()
     user_group_names = list(user.groups.values_list('name', flat=True))
 
-    is_authorized = (
-        user.is_superuser or 
-        'Technicians' in user_group_names
+    is_authorized = check_user_role(
+        user,
+        'Technicians',
+        ['tech', 'technician', 'repair', 'maintenance', 'mechanic']
     )
     
     if not is_authorized:
@@ -262,10 +269,10 @@ def seacraft_dashboard(request):
     username_lower = user.username.lower()
     user_group_names = list(user.groups.values_list('name', flat=True))
 
-    is_authorized = (
-        user.is_superuser or 
-        'Maritime_Tech' in user_group_names or 
-        'Tech' in username_lower or 'maritime' in username_lower
+    is_authorized = check_user_role(
+        user,
+        'Maritime_Tech',
+        ['maritime', 'sea', 'craft', 'tech', 'dispatch']
     )
 
     if not is_authorized:
@@ -334,7 +341,7 @@ def seacraft_dashboard(request):
 def logistics_dashboard(request):
     user = request.user
 
-    if not (user.is_staff or check_user_role(user, 'Logistics')):
+    if not check_user_role(user, 'Logistics Officers', ['logistics', 'log', 'depot', 'fleet']):
         messages.error(request, "Access restricted to Logistics Depot management accounts.")
         return redirect('homepage')
 

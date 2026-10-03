@@ -38,9 +38,12 @@
             </span>
             {% endif %}
             
-            <a href="{% url 'dashboard_portal:login' %}" class="btn btn-sm btn-outline-light fw-bold px-3">
-                <i class="fa-solid fa-house me-1"></i> Log Out
-            </a>
+            <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="d-inline m-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-light fw-bold px-3">
+                    <i class="fa-solid fa-right-from-bracket me-1"></i> Log Out
+                </button>
+            </form>
         </div>
     </nav>
 
