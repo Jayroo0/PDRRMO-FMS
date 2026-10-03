@@ -56,7 +56,7 @@ class Command(BaseCommand):
                 password=u_data["pass"],
                 first_name=u_data["first"],
                 last_name=u_data["last"],
-                is_staff=True  # Allows access to the Django administrative site
+                is_staff=False
             )
             user.groups.add(u_data["group"])
             self.stdout.write(f"Account Registered: {user.username} ({user.first_name} {user.last_name})")

@@ -126,9 +126,9 @@
     <div class="login-card">
 
         <div class="pb-3 mb-4 text-start">
-            <div class="system-index text-uppercase mb-2">SYS.REF // FLT-CTRL-04</div>
-            <h1 class="system-title m-0">FLEET CONTROL CENTER</h1>
-            <p class="text-uppercase text-muted fw-bold small m-0 mt-2" style="letter-spacing: 1.5px; font-size: 0.7rem;">Verified Identity Credentials Required</p>
+            <div class="system-index text-uppercase mb-2">REF // FLEET OPS</div>
+            <h1 class="system-title m-0">Fleet Operations Center</h1>
+            <p class="text-uppercase text-muted fw-bold small m-0 mt-2" style="letter-spacing: 1.5px; font-size: 0.7rem;">Secure Sign-In Required</p>
         </div>
         
         {% if messages %}
@@ -146,19 +146,19 @@
             {% csrf_token %}
             
             <div class="mb-3">
-                <label class="form-label text-dark small fw-bold text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 1px;">01. Personnel Identifier</label>
-                <input type="text" name="username" class="form-control" placeholder="OPERATOR ID" required autofocus>
+                <label class="form-label text-dark small fw-bold text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 1px;">01. Username</label>
+                <input type="text" name="username" class="form-control" placeholder="Enter username" required autofocus>
             </div>
             
             <div class="mb-4">
-                <label class="form-label text-dark small fw-bold text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 1px;">02. Access Cryptograph</label>
-                <input type="password" name="password" class="form-control" placeholder="PASSWORD KEY" required>
+                <label class="form-label text-dark small fw-bold text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 1px;">02. Password</label>
+                <input type="password" name="password" class="form-control" placeholder="Enter password" required>
             </div>
             
             <div class="d-grid gap-2 pt-2">
-                <button type="submit" class="btn btn-command">Authenticate</button>
+                <button type="submit" class="btn btn-command">Sign In</button>
                 <a href="{% url 'dashboard_portal:homepage' %}" class="btn-public-hub text-center">
-                    Exit Gateway Portal
+                    Public Homepage
                 </a>
             </div>
         </form>
