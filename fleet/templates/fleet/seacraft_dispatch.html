@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,6 +7,7 @@
     <title>PDRRMO | Seacraft Dispatch & Control </title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'fleet/css/asset_grid.css' %}">
     <style>
         :root {
             --brand-blue: #0f172a;       /* Deep Corporate Navy */
@@ -160,7 +162,7 @@
                 <div class="tab-content" id="seacraftTabContent">
                     
                     <div class="tab-pane fade show active" id="all-crafts" role="tabpanel" aria-labelledby="all-crafts-tab">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
                                 <tr>
                                     <th style="background-color: #0284C7 !important;">Equipment Designation Model</th>
@@ -185,6 +187,10 @@
                                             <span class="badge bg-danger">MAINTENANCE</span>
                                         {% elif craft.status == 'PENDING_DISPOSAL' %}
                                             <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
+                                            <div class="small text-danger mt-1">
+                                                <strong>Disposal reason:</strong>
+                                                {{ craft.disposal_reason|default:"No reason recorded." }}
+                                            </div>
                                         {% else %}
                                             <span class="badge bg-success">OPERATIONAL</span>
                                         {% endif %}
@@ -276,7 +282,7 @@
                     </div>
 
                     <div class="tab-pane fade" id="deployed-crafts" role="tabpanel" aria-labelledby="deployed-crafts-tab">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
                                 <tr>
                                     <th style="background-color: #0284C7 !important;">Equipment Designation Model</th>
@@ -324,7 +330,7 @@
                     </div>
 
                     <div class="tab-pane fade" id="standby-crafts" role="tabpanel" aria-labelledby="standby-crafts-tab">
-                        <table class="table table-hover align-middle mb-0">
+                        <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
                                 <tr>
                                     <th style="background-color: #0284C7 !important;">Equipment Designation Model</th>
@@ -348,6 +354,10 @@
                                                 <span class="badge bg-danger">MAINTENANCE</span>
                                             {% elif craft.status == 'PENDING_DISPOSAL' %}
                                                 <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
+                                                <div class="small text-danger mt-1">
+                                                    <strong>Disposal reason:</strong>
+                                                    {{ craft.disposal_reason|default:"No reason recorded." }}
+                                                </div>
                                             {% else %}
                                                 <span class="badge bg-success">OPERATIONAL</span>
                                             {% endif %}

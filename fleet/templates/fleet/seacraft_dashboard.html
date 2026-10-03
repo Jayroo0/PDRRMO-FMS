@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maritime Vessels Dashboard | PDRRMO</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="{% static 'fleet/css/asset_grid.css' %}">
 </head>
 <body class="bg-gray-100 font-sans min-h-screen flex flex-col justify-between">
 
@@ -41,7 +43,7 @@
             </div>
 
             <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse text-sm">
+                <table class="w-full text-left border-collapse text-sm asset-grid-table asset-grid-table--sea">
                     <thead>
                         <tr class="bg-gray-100 text-gray-600 uppercase font-bold tracking-wider text-xs border-b border-gray-200">
                             <th class="px-6 py-3">Vessel Model Name</th>
@@ -72,6 +74,14 @@
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 uppercase border border-emerald-200">
                                             Ready Operational
                                         </span>
+                                    {% elif craft.status == 'PENDING_DISPOSAL' %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 uppercase border border-amber-200">
+                                            Pending Disposal
+                                        </span>
+                                        <div class="mt-1 text-xs text-red-700">
+                                            <strong>Disposal reason:</strong>
+                                            {{ craft.disposal_reason|default:"No reason recorded." }}
+                                        </div>
                                     {% else %}
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 uppercase border border-blue-200">
                                             {{ craft.status }}
@@ -94,8 +104,35 @@
                                                     <span>Move For Disposal</span>
                                                 </button>
                                             </form>
+                                        {% elif craft.status == 'PENDING_DISPOSAL' %}
+                                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="inline-flex items-center gap-2 m-0">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                <input type="hidden" name="action_type" value="UPDATE_DISPOSAL_REASON">
+                                                <input
+                                                    type="text"
+                                                    name="disposal_remarks"
+                                                    value="{{ craft.disposal_reason }}"
+                                                    aria-label="Updated disposal reason for {{ craft.model_name }}"
+                                                    placeholder="Enter disposal reason"
+                                                    required
+                                                    class="w-48 rounded border border-gray-300 px-2 py-1 text-xs"
+                                                >
+                                                <button type="submit" class="border border-sky-300 bg-sky-50 hover:bg-sky-600 hover:text-white text-sky-700 px-2.5 py-1.5 rounded text-xs font-bold uppercase transition">
+                                                    Update Reason
+                                                </button>
+                                            </form>
+                                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="m-0" onsubmit="return confirm('Cancel the disposal request and return this vessel to maintenance?');">
+                                                {% csrf_token %}
+                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                <input type="hidden" name="action_type" value="UNDO_DISPOSAL">
+                                                <button type="submit" class="border border-amber-300 bg-amber-50 hover:bg-amber-600 hover:text-white text-amber-800 px-2.5 py-1.5 rounded text-xs font-bold uppercase transition">
+                                                    Undo Disposal
+                                                </button>
+                                            </form>
                                         {% endif %}
 
+                                        {% if craft.status != 'PENDING_DISPOSAL' %}
                                         <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="inline-flex items-center m-0">
                                             {% csrf_token %}
                                             <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
@@ -121,6 +158,7 @@
                                                 </span>
                                             </label>
                                         </form>
+                                        {% endif %}
 
                                     </div>
                                 </td>

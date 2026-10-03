@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 240" role="img" aria-labelledby="title">
+  <title id="title">Seacraft</title>
+  <rect width="640" height="240" rx="24" fill="#e0f2fe"/>
+  <circle cx="510" cy="58" r="25" fill="#fbbf24"/>
+  <path d="M0 157c55-22 105 22 160 0s105 22 160 0 105 22 160 0 105 22 160 0v83H0z" fill="#38bdf8"/>
+  <path d="M0 184c55-22 105 22 160 0s105 22 160 0 105 22 160 0 105 22 160 0v56H0z" fill="#0284c7"/>
+  <path d="M126 145h385l-48 50H174z" fill="#1a365d"/>
+  <path d="M218 112h176l37 33H180z" fill="#ea580c"/>
+  <path d="M270 76h88v36h-88z" fill="#f8fafc"/>
+  <path d="M285 86h21v17h-21zM320 86h23v17h-23z" fill="#7dd3fc"/>
+  <path d="M310 48h8v28h-8z" fill="#334155"/>
+  <path d="M318 51h39l-39 22z" fill="#f8fafc"/>
+  <path d="M154 201c44 13 88 13 132 0M328 201c44 13 88 13 132 0" fill="none" stroke="#e0f2fe" stroke-linecap="round" stroke-width="6"/>
+</svg>

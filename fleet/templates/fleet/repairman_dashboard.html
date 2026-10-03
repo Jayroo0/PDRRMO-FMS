@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,6 +6,7 @@
     <title>PDRRMO | Land Assets Mechanical Workbench</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'fleet/css/asset_grid.css' %}">
     <style>
         body { background-color: #FFFFFF; }
         .nav-header { background-color: #1A365D; border-bottom: 4px solid #0EA5E9; }
@@ -51,7 +53,7 @@
         <h3 class="fw-bold mb-3" style="color: #1A365D;">Land Vehicle Work Orders</h3>
         <div class="card shadow-sm border-0">
             <div class="card-body p-0 border bg-white rounded">
-                <table class="table table-hover align-middle mb-0">
+                <table class="table table-hover align-middle mb-0 asset-grid-table">
                     <thead class="table-theme">
                         <tr>
                             <th>Equipment Unit</th>
@@ -80,6 +82,15 @@
                                         <span style="height: 10px; width: 10px; background-color: #DC2626; border-radius: 50%; display: inline-block;"></span>
                                         MAINTENANCE
                                     </div>
+                                {% elif vehicle.status == 'PENDING_DISPOSAL' %}
+                                    <div class="border px-3 py-1.5 rounded d-inline-flex align-items-center gap-2 bg-light text-dark fw-semibold" style="min-width: 160px; height: 38px; font-size: 0.875rem;">
+                                        <span style="height: 10px; width: 10px; background-color: #F59E0B; border-radius: 50%; display: inline-block;"></span>
+                                        PENDING DISPOSAL
+                                    </div>
+                                    <div class="small text-danger mt-1">
+                                        <strong>Disposal reason:</strong>
+                                        {{ vehicle.disposal_reason|default:"No reason recorded." }}
+                                    </div>
                                 {% else %}
                                     <div class="border px-3 py-1.5 rounded d-inline-flex align-items-center gap-2 bg-light text-dark fw-semibold" style="min-width: 160px; height: 38px; font-size: 0.875rem;">
                                         <span style="height: 10px; width: 10px; background-color: #10B981; border-radius: 50%; display: inline-block;"></span>
@@ -102,8 +113,36 @@
                                                 <span>Move For Disposal</span>
                                             </button>
                                         </form>
+                                    {% elif vehicle.status == 'PENDING_DISPOSAL' %}
+                                        <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="d-flex align-items-center gap-2 m-0">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                            <input type="hidden" name="action_type" value="UPDATE_DISPOSAL_REASON">
+                                            <input
+                                                type="text"
+                                                name="disposal_remarks"
+                                                class="form-control form-control-sm"
+                                                value="{{ vehicle.disposal_reason }}"
+                                                aria-label="Updated disposal reason for {{ vehicle.model_name }}"
+                                                placeholder="Enter disposal reason"
+                                                required
+                                            >
+                                            <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">
+                                                <i class="fa-solid fa-pen-to-square"></i> Update Reason
+                                            </button>
+                                        </form>
+                                        <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="m-0" onsubmit="return confirm('Cancel the disposal request and return this asset to maintenance?');">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                            <input type="hidden" name="action_type" value="UNDO_DISPOSAL">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning d-inline-flex align-items-center gap-1 fw-bold px-2.5 py-1.5 uppercase text-xs tracking-wider shadow-sm">
+                                                <i class="fa-solid fa-rotate-left"></i>
+                                                <span>Undo Disposal</span>
+                                            </button>
+                                        </form>
                                     {% endif %}
 
+                                    {% if vehicle.status != 'PENDING_DISPOSAL' %}
                                     <form method="POST" action="{% url 'dashboard_portal:repairman_dashboard' %}" class="form-check form-switch custom-switch d-flex align-items-center gap-3 m-0">
                                         {% csrf_token %}
                                         <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
@@ -126,6 +165,7 @@
                                             {% endif %}
                                         </span>
                                     </form>
+                                    {% endif %}
                                 </div>
                             </td>
                         </tr>

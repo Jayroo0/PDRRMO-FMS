@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -15,6 +16,11 @@
         .btn-teal:hover { background-color: #0284C7; color: white; }
         .text-orange { color: #EA580C !important; }
         .panel-header-custom { background-color: #1A365D; color: white; padding: 12px 20px; font-weight: bold; border-radius: 4px 4px 0 0; }
+        .asset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .75rem; }
+        .asset-grid-empty { grid-column: 1 / -1; }
+        .asset-card { border: 1px solid #dee2e6; border-top: 4px solid #1A365D; border-radius: .5rem; background: #fff; height: 100%; }
+        .asset-card-maritime { border-top-color: #0284C7; }
+        .asset-card-image { display: block; width: 100%; height: 72px; object-fit: contain; background: #f1f5f9; border-radius: .35rem; }
     </style>
 </head>
 <body>
@@ -71,59 +77,58 @@
                 <span><i class="fa-solid fa-truck-monster me-2 text-warning"></i>LAND OPERATIONS DIVISION</span>
                 <span class="badge bg-light text-dark font-monospace">REGISTRY: {{ land_vehicles.count }}</span>
             </div>
-            <div class="card-body p-0 border bg-white rounded-bottom">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-theme">
-                        <tr>
-                            <th>Equipment Designation Model</th>
-                            <th>Identifier Tag</th>
-                            <th>Current Status</th>
-                            <th>Assigned Personnel Operator</th>
-                            <th style="width: 25%;">Action Assignment Update</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for vehicle in land_vehicles %}
-                        <tr>
-                            <td>
-                                <strong>{{ vehicle.model_name }}</strong>
-                                <div class="text-muted small">{{ vehicle.vehicle_type.name }}</div>
-                            </td>
-                            <td><span class="badge bg-secondary font-monospace">{{ vehicle.plate_number }}</span></td>
-                            <td>
+            <div class="card-body border bg-light rounded-bottom">
+                <div class="asset-grid">
+                    {% for vehicle in land_vehicles %}
+                    <article class="asset-card shadow-sm">
+                        <div class="p-2 d-flex flex-column h-100">
+                            <img src="{% static 'fleet/images/land-vehicle.svg' %}" alt="Land vehicle" class="asset-card-image mb-2">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                <div>
+                                    <h5 class="fs-6 fw-bold mb-1" style="color: #1A365D;">{{ vehicle.model_name }}</h5>
+                                    <div class="text-muted small">{{ vehicle.vehicle_type.name }}</div>
+                                </div>
                                 {% if vehicle.status == 'DEPLOYED' %}
                                     <span class="badge bg-primary">DEPLOYED</span>
                                 {% elif vehicle.status == 'MAINTENANCE' %}
                                     <span class="badge bg-danger">MAINTENANCE</span>
                                 {% elif vehicle.status == 'PENDING_DISPOSAL' %}
-                                    <span class="badge bg-dark border border-warning text-warning animate-pulse">PENDING DISPOSAL</span>
+                                    <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
                                 {% else %}
                                     <span class="badge bg-success">OPERATIONAL</span>
                                 {% endif %}
-                            </td>
-                            <td>
-                                <form id="assign-form-{{ vehicle.id }}" action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="d-flex gap-2 m-0">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="set_driver">
-                                    <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                    
-                                    <select name="driver_id" class="form-select form-select-sm land-operator-select" style="max-width: 200px;" 
-                                            {% if vehicle.status == 'DEPLOYED' or vehicle.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
-                                        <option value="">-- Standby / Unassigned --</option>
-                                        {% if vehicle.assigned_driver %}
-                                            <option value="{{ vehicle.assigned_driver.id }}" selected>
-                                                {{ vehicle.assigned_driver.name }} {% if vehicle.status == 'DEPLOYED' %}(In Field){% endif %}
-                                            </option>
+                            </div>
+                            <div class="mb-3">
+                                <span class="small text-muted">Identifier Tag</span>
+                                <div><span class="badge bg-secondary font-monospace">{{ vehicle.plate_number }}</span></div>
+                            </div>
+                            {% if vehicle.status == 'PENDING_DISPOSAL' %}
+                            <div class="small text-danger border rounded bg-danger-subtle p-2 mb-3">
+                                <strong>Disposal reason:</strong>
+                                {{ vehicle.disposal_reason|default:"No reason recorded." }}
+                            </div>
+                            {% endif %}
+                            <label for="land-driver-{{ vehicle.id }}" class="form-label small fw-semibold mb-1">Assigned Personnel Operator</label>
+                            <form id="assign-form-{{ vehicle.id }}" action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="d-flex gap-2 mb-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="set_driver">
+                                <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                <select id="land-driver-{{ vehicle.id }}" name="driver_id" class="form-select form-select-sm land-operator-select"
+                                        {% if vehicle.status == 'DEPLOYED' or vehicle.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
+                                    <option value="">-- Standby / Unassigned --</option>
+                                    {% if vehicle.assigned_driver %}
+                                        <option value="{{ vehicle.assigned_driver.id }}" selected>
+                                            {{ vehicle.assigned_driver.name }} {% if vehicle.status == 'DEPLOYED' %}(In Field){% endif %}
+                                        </option>
+                                    {% endif %}
+                                    {% for driver in land_drivers %}
+                                        {% if vehicle.assigned_driver.id != driver.id %}
+                                            <option value="{{ driver.id }}">{{ driver.name }}</option>
                                         {% endif %}
-                                        {% for driver in land_drivers %}
-                                            {% if vehicle.assigned_driver.id != driver.id %}
-                                                <option value="{{ driver.id }}">{{ driver.name }}</option>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </select>
-                                </form>
-                            </td>
-                            <td>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                            <div class="mt-auto">
                                 {% if vehicle.status == 'OPERATIONAL' %}
                                     <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0">
                                         {% csrf_token %}
@@ -147,30 +152,30 @@
                                         <button type="submit" class="btn btn-sm btn-danger w-100"><i class="fa-solid fa-user-slash me-1"></i> REMOVE DRIVER</button>
                                     </form>
                                 {% elif vehicle.status == 'PENDING_DISPOSAL' %}
-                                    <div class="d-flex gap-1">
+                                    <div class="d-flex gap-2">
                                         <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0 w-50">
                                             {% csrf_token %}
                                             <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
                                             <input type="hidden" name="action" value="decline_disposal">
-                                            <button type="submit" class="btn btn-xs btn-outline-secondary w-100 py-1 font-monospace" style="font-size: 0.72rem;" title="Decline and return to Under Maintenance"><i class="fa-solid fa-wrench"></i> REPAIR</button>
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary w-100" title="Decline and return to maintenance"><i class="fa-solid fa-wrench"></i> REPAIR</button>
                                         </form>
                                         <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0 w-50">
                                             {% csrf_token %}
                                             <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
                                             <input type="hidden" name="action" value="confirm_disposal">
-                                            <button type="submit" class="btn btn-xs btn-danger w-100 py-1 font-monospace" style="font-size: 0.72rem;" title="Confirm asset disposal clearance"><i class="fa-solid fa-box-archive"></i> ARCHIVE</button>
+                                            <button type="submit" class="btn btn-sm btn-danger w-100" title="Archive asset"><i class="fa-solid fa-box-archive"></i> ARCHIVE</button>
                                         </form>
                                     </div>
                                 {% else %}
                                     <button type="button" class="btn btn-sm btn-secondary w-100" disabled><i class="fa-solid fa-ban me-1"></i> LOCKED</button>
                                 {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="5" class="text-center py-4 text-muted fw-semibold">No land operations fleet assets registered in system mapping rows.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                            </div>
+                        </div>
+                    </article>
+                    {% empty %}
+                    <div class="asset-grid-empty text-center py-4 text-muted fw-semibold">No land operations fleet assets registered in system mapping rows.</div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
 
@@ -179,62 +184,58 @@
                 <span><i class="fa-solid fa-ship me-2 text-warning"></i>MARITIME DIVISION (SEACRAFTS)</span>
                 <span class="badge bg-light text-dark font-monospace">REGISTRY: {{ sea_crafts.count }}</span>
             </div>
-            <div class="card-body p-0 border bg-white rounded-bottom">
-                <table class="table table-hover align-middle mb-0">
-                    <thead class="table-theme">
-                        <tr>
-                            <th style="background-color: #0284C7 !important;">Equipment Designation Model</th>
-                            <th style="background-color: #0284C7 !important;">Hull ID Tag</th>
-                            <th style="background-color: #0284C7 !important;">Current Status</th>
-                            <th style="background-color: #0284C7 !important;">Assigned Personnel Operator</th>
-                            <th style="width: 25%; background-color: #0284C7 !important;">Action Assignment Update</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for craft in sea_crafts %}
-                        <tr>
-                            <td>
-                                <strong>{{ craft.model_name }}</strong>
-                                <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
-                            </td>
-                            <td><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></td>
-                            <td>
+            <div class="card-body border bg-light rounded-bottom">
+                <div class="asset-grid">
+                    {% for craft in sea_crafts %}
+                    <article class="asset-card asset-card-maritime shadow-sm">
+                        <div class="p-2 d-flex flex-column h-100">
+                            <img src="{% static 'fleet/images/seacraft.svg' %}" alt="Seacraft" class="asset-card-image mb-2">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-3">
+                                <div>
+                                    <h5 class="fs-6 fw-bold mb-1" style="color: #1A365D;">{{ craft.model_name }}</h5>
+                                    <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                </div>
                                 {% if craft.status == 'DEPLOYED' %}
                                     <span class="badge bg-primary">DEPLOYED</span>
                                 {% elif craft.status == 'MAINTENANCE' %}
                                     <span class="badge bg-danger">MAINTENANCE</span>
                                 {% elif craft.status == 'PENDING_DISPOSAL' %}
-                                    <span class="badge bg-dark border border-warning text-warning animate-pulse">PENDING DISPOSAL</span>
+                                    <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
                                 {% else %}
                                     <span class="badge bg-success">OPERATIONAL</span>
                                 {% endif %}
-                            </td>
-                            <td>
-                                <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="d-flex gap-2 m-0">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="set_driver">
-                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                    
-                                    <select name="driver_id" 
-                                            class="form-select form-select-sm fw-bold border-secondary-subtle sea-operator-select" 
-                                            style="max-width: 200px; cursor: pointer;"
-                                            {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
-                                        
-                                        <option value="">-- Standby / Unassigned --</option>
-                                        {% if craft.assigned_driver %}
-                                            <option value="{{ craft.assigned_driver.id }}" selected>
-                                                👤 {{ craft.assigned_driver.name }} {% if craft.status == 'DEPLOYED' %}(In Field){% endif %}
-                                            </option>
+                            </div>
+                            <div class="mb-3">
+                                <span class="small text-muted">Hull ID Tag</span>
+                                <div><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></div>
+                            </div>
+                            {% if craft.status == 'PENDING_DISPOSAL' %}
+                            <div class="small text-danger border rounded bg-danger-subtle p-2 mb-3">
+                                <strong>Disposal reason:</strong>
+                                {{ craft.disposal_reason|default:"No reason recorded." }}
+                            </div>
+                            {% endif %}
+                            <label for="sea-driver-{{ craft.id }}" class="form-label small fw-semibold mb-1">Assigned Personnel Operator</label>
+                            <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="d-flex gap-2 mb-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="set_driver">
+                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                <select id="sea-driver-{{ craft.id }}" name="driver_id" class="form-select form-select-sm sea-operator-select"
+                                        {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
+                                    <option value="">-- Standby / Unassigned --</option>
+                                    {% if craft.assigned_driver %}
+                                        <option value="{{ craft.assigned_driver.id }}" selected>
+                                            {{ craft.assigned_driver.name }} {% if craft.status == 'DEPLOYED' %}(In Field){% endif %}
+                                        </option>
+                                    {% endif %}
+                                    {% for driver in sea_drivers %}
+                                        {% if craft.assigned_driver.id != driver.id %}
+                                            <option value="{{ driver.id }}">{{ driver.name }}</option>
                                         {% endif %}
-                                        {% for driver in sea_drivers %}
-                                            {% if craft.assigned_driver.id != driver.id %}
-                                                <option value="{{ driver.id }}">👤 {{ driver.name }}</option>
-                                            {% endif %}
-                                        {% endfor %}
-                                    </select>
-                                </form>
-                            </td>
-                            <td>
+                                    {% endfor %}
+                                </select>
+                            </form>
+                            <div class="mt-auto">
                                 {% if craft.status == 'OPERATIONAL' %}
                                     <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0">
                                         {% csrf_token %}
@@ -258,30 +259,30 @@
                                         <button type="submit" class="btn btn-sm btn-danger w-100"><i class="fa-solid fa-user-slash me-1"></i> REMOVE OPERATOR</button>
                                     </form>
                                 {% elif craft.status == 'PENDING_DISPOSAL' %}
-                                    <div class="d-flex gap-1">
+                                    <div class="d-flex gap-2">
                                         <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0 w-50">
                                             {% csrf_token %}
                                             <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
                                             <input type="hidden" name="action" value="decline_disposal">
-                                            <button type="submit" class="btn btn-xs btn-outline-secondary w-100 py-1 font-monospace" style="font-size: 0.72rem;" title="Decline and return to Under Maintenance"><i class="fa-solid fa-wrench"></i> REPAIR</button>
+                                            <button type="submit" class="btn btn-sm btn-outline-secondary w-100" title="Decline and return to maintenance"><i class="fa-solid fa-wrench"></i> REPAIR</button>
                                         </form>
                                         <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0 w-50">
                                             {% csrf_token %}
                                             <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
                                             <input type="hidden" name="action" value="confirm_disposal">
-                                            <button type="submit" class="btn btn-xs btn-danger w-100 py-1 font-monospace" style="font-size: 0.72rem;" title="Confirm asset disposal clearance"><i class="fa-solid fa-box-archive"></i> ARCHIVE</button>
+                                            <button type="submit" class="btn btn-sm btn-danger w-100" title="Archive asset"><i class="fa-solid fa-box-archive"></i> ARCHIVE</button>
                                         </form>
                                     </div>
                                 {% else %}
                                     <button type="button" class="btn btn-sm btn-secondary w-100" disabled><i class="fa-solid fa-ban me-1"></i> LOCKED</button>
                                 {% endif %}
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr><td colspan="5" class="text-center py-4 text-muted fw-semibold">No marine operations fleet assets registered in system mapping rows.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                            </div>
+                        </div>
+                    </article>
+                    {% empty %}
+                    <div class="asset-grid-empty text-center py-4 text-muted fw-semibold">No marine operations fleet assets registered in system mapping rows.</div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </div>

@@ -1,0 +1,59 @@
+.asset-grid-table {
+    display: block;
+    width: 100%;
+    border-collapse: separate;
+    background: transparent;
+}
+
+.asset-grid-table thead {
+    display: none;
+}
+
+.asset-grid-table tbody {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+    gap: .75rem;
+    padding: .75rem;
+}
+
+.asset-grid-table tbody tr {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: .6rem;
+    border: 1px solid #dee2e6;
+    border-top: 4px solid #1a365d;
+    border-radius: .5rem;
+    background: #fff;
+}
+
+.asset-grid-table tbody tr.asset-grid-row--sea {
+    border-top-color: #0284c7;
+}
+
+.asset-grid-table tbody tr::before {
+    display: block;
+    width: 100%;
+    height: 72px;
+    margin-bottom: .5rem;
+    border-radius: .35rem;
+    background: #f1f5f9 url("../images/land-vehicle.svg") center / contain no-repeat;
+    content: "";
+}
+
+.asset-grid-table.asset-grid-table--sea tbody tr::before,
+.asset-grid-table tbody tr.asset-grid-row--sea::before {
+    background-image: url("../images/seacraft.svg");
+}
+
+.asset-grid-table tbody td {
+    display: block;
+    width: 100%;
+    padding: .25rem !important;
+    border: 0 !important;
+}
+
+.asset-grid-table tbody tr:hover {
+    background-color: #fff;
+    box-shadow: 0 .125rem .5rem rgb(15 23 42 / 10%);
+}

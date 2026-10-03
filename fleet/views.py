@@ -71,6 +71,31 @@ def log_action_to_admin(request, object_instance, action_flag, change_message):
     )
 
 
+def add_disposal_reasons(vehicles):
+    pending_vehicle_ids = set(
+        vehicles.filter(status='PENDING_DISPOSAL').values_list('id', flat=True)
+    )
+    disposal_reasons = {}
+    if pending_vehicle_ids:
+        vehicle_content_type = ContentType.objects.get_for_model(Vehicle)
+        reason_entries = LogEntry.objects.filter(
+            content_type=vehicle_content_type,
+            object_id__in=pending_vehicle_ids,
+            change_message__contains='Remarks:',
+        ).order_by('-action_time').values_list('object_id', 'change_message')
+
+        for vehicle_id, change_message in reason_entries:
+            disposal_reasons.setdefault(
+                int(vehicle_id),
+                change_message.partition('Remarks:')[2].strip(),
+            )
+
+    for vehicle in vehicles:
+        if vehicle.id in pending_vehicle_ids:
+            vehicle.disposal_reason = disposal_reasons.get(vehicle.id, '')
+    return vehicles
+
+
 # =========================================================================
 # 1. HOMEPAGE VIEW
 # =========================================================================
@@ -211,6 +236,10 @@ def repairman_dashboard(request):
             
             # ♻️ HANDLE DISPOSAL ACTION TYPE FLAG (WITH REMARKS VALIDATION)
             if action_type == 'FLAG_DISPOSAL':
+                if vehicle.status != 'MAINTENANCE':
+                    messages.error(request, f"{vehicle.model_name} must be in maintenance before it can be flagged for disposal.")
+                    return redirect('dashboard_portal:repairman_dashboard')
+
                 remarks = request.POST.get('disposal_remarks', '').strip()
                 
                 if not remarks:
@@ -225,11 +254,46 @@ def repairman_dashboard(request):
                 # Log to system audit trail trailing the repairman's specific remarks
                 log_action_to_admin(request, vehicle, CHANGE, f"Flagged asset {vehicle.model_name} for disposal from repair workshop. Remarks: {remarks}")
                 messages.warning(request, f"{vehicle.model_name} has been routed to Logistics for decommissioning evaluation.")
+
+            elif action_type == 'UNDO_DISPOSAL':
+                if vehicle.status != 'PENDING_DISPOSAL':
+                    messages.error(request, f"{vehicle.model_name} is not pending disposal.")
+                    return redirect('dashboard_portal:repairman_dashboard')
+
+                vehicle.status = 'MAINTENANCE'
+                vehicle.save()
+                log_action_to_admin(
+                    request,
+                    vehicle,
+                    CHANGE,
+                    f"Cancelled disposal request for {vehicle.model_name}; returned to maintenance by workshop.",
+                )
+                messages.success(request, f"Disposal request for {vehicle.model_name} cancelled; returned to MAINTENANCE.")
+
+            elif action_type == 'UPDATE_DISPOSAL_REASON':
+                if vehicle.status != 'PENDING_DISPOSAL':
+                    messages.error(request, f"{vehicle.model_name} is not pending disposal.")
+                    return redirect('dashboard_portal:repairman_dashboard')
+
+                remarks = request.POST.get('disposal_remarks', '').strip()
+                if not remarks:
+                    messages.error(request, "A disposal reason is required.")
+                    return redirect('dashboard_portal:repairman_dashboard')
+
+                log_action_to_admin(
+                    request,
+                    vehicle,
+                    CHANGE,
+                    f"Updated disposal reason for {vehicle.model_name}. Remarks: {remarks}",
+                )
+                messages.success(request, f"Disposal reason updated for {vehicle.model_name}.")
             
             # STANDARD TOGGLE SWITCH PIPELINE
             else:
                 new_status = request.POST.get('status')
-                if new_status:
+                if vehicle.status == 'PENDING_DISPOSAL':
+                    messages.error(request, "Use the cancel disposal action to return this asset to maintenance.")
+                elif new_status:
                     if new_status in ['OPERATIONAL', 'MAINTENANCE']:
                         if new_status == 'MAINTENANCE' and vehicle.assigned_driver:
                             vehicle.assigned_driver = None
@@ -251,13 +315,16 @@ def repairman_dashboard(request):
         'vehicle_type', 'assigned_driver'
     ).order_by(
         Case(
-            When(status='MAINTENANCE', then=Value(1)),
-            When(status='OPERATIONAL', then=Value(2)),
-            default=Value(3),
+            When(status='OPERATIONAL', then=Value(1)),
+            When(status='DEPLOYED', then=Value(2)),
+            When(status='MAINTENANCE', then=Value(3)),
+            When(status='PENDING_DISPOSAL', then=Value(4)),
+            default=Value(5),
             output_field=IntegerField(),
         ),
         'model_name'
     )
+    vehicles = add_disposal_reasons(vehicles)
     
     return render(request, 'fleet/repairman_dashboard.html', {'vehicles': vehicles})
 # =========================================================================
@@ -288,8 +355,12 @@ def seacraft_dashboard(request):
             
             # ♻️ HANDLE DISPOSAL ACTION TYPE FLAG (WITH REMARKS VALIDATION)
             if action_type == 'FLAG_DISPOSAL':
+                if vehicle.status != 'MAINTENANCE':
+                    messages.error(request, f"{vehicle.model_name} must be in maintenance before it can be flagged for disposal.")
+                    return redirect('dashboard_portal:seacraft_dashboard')
+
                 remarks = request.POST.get('disposal_remarks', '').strip()
-                
+
                 if not remarks:
                     messages.error(request, f"Failure: You must provide a justification remark to flag {vehicle.model_name} for disposal.")
                     return redirect('dashboard_portal:seacraft_dashboard')
@@ -302,11 +373,46 @@ def seacraft_dashboard(request):
                 # Appends operator remarks directly into your existing administrative audit trail function
                 log_action_to_admin(request, vehicle, CHANGE, f"Flagged maritime asset {vehicle.model_name} for disposal processing. Remarks: {remarks}")
                 messages.warning(request, f"{vehicle.model_name} has been routed to Logistics for disposal confirmation.")
+
+            elif action_type == 'UNDO_DISPOSAL':
+                if vehicle.status != 'PENDING_DISPOSAL':
+                    messages.error(request, f"{vehicle.model_name} is not pending disposal.")
+                    return redirect('dashboard_portal:seacraft_dashboard')
+
+                vehicle.status = 'MAINTENANCE'
+                vehicle.save()
+                log_action_to_admin(
+                    request,
+                    vehicle,
+                    CHANGE,
+                    f"Cancelled disposal request for {vehicle.model_name}; returned to maintenance by maritime workshop.",
+                )
+                messages.success(request, f"Disposal request for {vehicle.model_name} cancelled; returned to MAINTENANCE.")
+
+            elif action_type == 'UPDATE_DISPOSAL_REASON':
+                if vehicle.status != 'PENDING_DISPOSAL':
+                    messages.error(request, f"{vehicle.model_name} is not pending disposal.")
+                    return redirect('dashboard_portal:seacraft_dashboard')
+
+                remarks = request.POST.get('disposal_remarks', '').strip()
+                if not remarks:
+                    messages.error(request, "A disposal reason is required.")
+                    return redirect('dashboard_portal:seacraft_dashboard')
+
+                log_action_to_admin(
+                    request,
+                    vehicle,
+                    CHANGE,
+                    f"Updated disposal reason for {vehicle.model_name}. Remarks: {remarks}",
+                )
+                messages.success(request, f"Disposal reason updated for {vehicle.model_name}.")
             
             # STANDARD TOGGLE SWITCH PIPELINE
             else:
                 new_status = request.POST.get('status')
-                if new_status in ['OPERATIONAL', 'MAINTENANCE']:
+                if vehicle.status == 'PENDING_DISPOSAL':
+                    messages.error(request, "Use the cancel disposal action to return this vessel to maintenance.")
+                elif new_status in ['OPERATIONAL', 'MAINTENANCE']:
                     if new_status == 'MAINTENANCE' and vehicle.assigned_driver:
                         vehicle.assigned_driver = None
                     
@@ -317,22 +423,26 @@ def seacraft_dashboard(request):
             
             return redirect('dashboard_portal:seacraft_dashboard')
 
-    # GET LOGIC: Exclude archived and pending disposal assets from regular active visibility arrays
+    # GET LOGIC: Keep pending disposal vessels visible for workshop review.
     vehicles = Vehicle.objects.filter(
         vehicle_type__name__iexact='MARINE'
     ).exclude(
-        status__in=['PENDING_DISPOSAL', 'ARCHIVED', 'DISPOSED']
+        status__in=['ARCHIVED', 'DISPOSED']
     ).select_related(
         'vehicle_type', 'assigned_driver'
     ).order_by(
         Case(
-            When(status='MAINTENANCE', then=Value(1)),
-            When(status='OPERATIONAL', then=Value(2)),
-            default=Value(3),
+            When(status='OPERATIONAL', then=Value(1)),
+            When(status='DEPLOYED', then=Value(2)),
+            When(status='MAINTENANCE', then=Value(3)),
+            When(status='PENDING_DISPOSAL', then=Value(4)),
+            default=Value(5),
             output_field=IntegerField(),
         ),
         'model_name'
     )
+    vehicles = add_disposal_reasons(vehicles)
+
     return render(request, 'fleet/seacraft_dashboard.html', {'vehicles': vehicles})
 # =========================================================================
 # 5. LOGISTICS DASHBOARD (Onboarding & Driver Assignment Matrix)
@@ -452,9 +562,27 @@ def logistics_dashboard(request):
     # =========================================================================
     all_vehicles = Vehicle.objects.all().select_related('vehicle_type', 'assigned_driver')
     
-    land_vehicles = all_vehicles.exclude(vehicle_type__name__iexact='MARINE').exclude(status='ARCHIVED')
-    sea_crafts = all_vehicles.filter(vehicle_type__name__iexact='MARINE').exclude(status='ARCHIVED')
+    status_order = Case(
+        When(status='OPERATIONAL', then=Value(1)),
+        When(status='DEPLOYED', then=Value(2)),
+        When(status='MAINTENANCE', then=Value(3)),
+        When(status='PENDING_DISPOSAL', then=Value(4)),
+        default=Value(5),
+        output_field=IntegerField(),
+    )
+    land_vehicles = all_vehicles.exclude(
+        vehicle_type__name__iexact='MARINE'
+    ).exclude(
+        status='ARCHIVED'
+    ).order_by(status_order, 'model_name')
+    sea_crafts = all_vehicles.filter(
+        vehicle_type__name__iexact='MARINE'
+    ).exclude(
+        status='ARCHIVED'
+    ).order_by(status_order, 'model_name')
     pending_disposals = all_vehicles.filter(status='PENDING_DISPOSAL')
+    land_vehicles = add_disposal_reasons(land_vehicles)
+    sea_crafts = add_disposal_reasons(sea_crafts)
     
     types = VehicleType.objects.all()
     
@@ -604,19 +732,21 @@ def seacraft_dispatch_view(request):
             Q(vehicle_type__name__iexact="marine")
             | Q(vehicle_type__name__iexact="maritime")
         )
-        .exclude(status__in=["PENDING_DISPOSAL", "ARCHIVED", "DISPOSED"])
+        .exclude(status__in=["ARCHIVED", "DISPOSED"])
         .select_related("vehicle_type", "assigned_driver")
         .order_by(
             Case(
-                When(status="MAINTENANCE", then=Value(1)),
-                When(status="OPERATIONAL", then=Value(2)),
-                When(status="DEPLOYED", then=Value(3)),
-                default=Value(4),
+                When(status="OPERATIONAL", then=Value(1)),
+                When(status="DEPLOYED", then=Value(2)),
+                When(status="MAINTENANCE", then=Value(3)),
+                When(status="PENDING_DISPOSAL", then=Value(4)),
+                default=Value(5),
                 output_field=IntegerField(),
             ),
             "model_name",
         )
     )
+    sea_crafts = add_disposal_reasons(sea_crafts)
 
     return render(
         request,
