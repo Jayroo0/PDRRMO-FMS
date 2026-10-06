@@ -23,6 +23,8 @@
         .asset-card { border: 1px solid #dee2e6; border-top: 4px solid #1A365D; border-radius: .5rem; background: #fff; height: 100%; }
         .asset-card-maritime { border-top-color: #0284C7; }
         .asset-card-image { display: block; width: 100%; height: 72px; object-fit: contain; background: #f1f5f9; border-radius: .35rem; }
+        .operations-drawer { --bs-offcanvas-width: min(360px, 90vw); }
+        .operations-drawer .btn { min-height: 44px; text-align: left; }
     </style>
     <link rel="stylesheet" href="{% static 'fleet/css/dashboard_theme.css' %}">
 </head>
@@ -34,14 +36,16 @@
         </span>
         
         <div class="d-flex align-items-center gap-2">
-            <button type="button" class="dashboard-print-trigger" aria-label="Print dashboard">
-                <i class="fa-solid fa-print" aria-hidden="true"></i> Print
-            </button>
-            <button type="button" class="btn btn-sm btn-orange fw-bold px-3 text-white" 
-                    id="onboard-trigger-btn"
-                    data-bs-toggle="modal" 
-                    data-bs-target="#addVehicleModal">
-                <i class="fa-solid fa-plus me-1"></i> Onboard New Fleet Asset
+            <button type="button" class="btn btn-sm btn-outline-light fw-bold position-relative"
+                    data-bs-toggle="offcanvas" data-bs-target="#operationsDrawer"
+                    aria-controls="operationsDrawer" aria-label="Open Logistics menu">
+                <i class="fa-solid fa-bars me-1" aria-hidden="true"></i> Menu
+                {% if pending_vehicle_requests %}
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                        {{ pending_vehicle_requests.count }}
+                        <span class="visually-hidden">pending requests</span>
+                    </span>
+                {% endif %}
             </button>
             
             {% if user.is_authenticated %}
@@ -58,6 +62,38 @@
             </form>
         </div>
     </nav>
+
+    <div class="offcanvas offcanvas-end operations-drawer" tabindex="-1" id="operationsDrawer" aria-labelledby="operationsDrawerLabel">
+        <div class="offcanvas-header text-white" style="background-color: #1A365D;">
+            <div>
+                <h2 class="offcanvas-title h5 fw-bold mb-1" id="operationsDrawerLabel">
+                    <i class="fa-solid fa-bars-staggered text-warning me-2" aria-hidden="true"></i>Logistics Menu
+                </h2>
+                <span class="small text-white-50">Fleet operations and reports</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body d-grid align-content-start gap-2 bg-light">
+            <button type="button" class="btn btn-outline-primary fw-bold dashboard-menu-action" data-menu-action="print">
+                <i class="fa-solid fa-print me-2" aria-hidden="true"></i>Print dashboard
+            </button>
+            <button type="button" class="btn btn-outline-secondary fw-bold dashboard-menu-action position-relative" data-menu-action="requests">
+                <i class="fa-solid fa-bell me-2" aria-hidden="true"></i>Vehicle Requests
+                {% if pending_vehicle_requests %}
+                    <span class="badge rounded-pill bg-danger ms-2">{{ pending_vehicle_requests.count }} pending</span>
+                {% endif %}
+            </button>
+            <button type="button" class="btn btn-orange fw-bold text-white dashboard-menu-action" id="onboard-trigger-btn" data-menu-action="modal" data-modal-target="#addVehicleModal">
+                <i class="fa-solid fa-plus me-2" aria-hidden="true"></i>Onboard New Fleet Asset
+            </button>
+            <button type="button" class="btn btn-outline-info fw-bold dashboard-menu-action" data-menu-action="modal" data-modal-target="#addDriverAccountModal">
+                <i class="fa-solid fa-user-plus me-2" aria-hidden="true"></i>Add Driver Login
+            </button>
+            <button type="button" class="btn btn-outline-dark fw-bold dashboard-menu-action" data-menu-action="modal" data-modal-target="#generateReportModal">
+                <i class="fa-solid fa-file-csv me-2" aria-hidden="true"></i>Generate Report
+            </button>
+        </div>
+    </div>
 
     <div class="container-fluid px-4">
         {% if messages %}
@@ -77,6 +113,46 @@
         {% endif %}
 
         <h3 class="fw-bold mb-4" style="color: #1A365D;">Personnel Deployment & Asset Tracking Manifest</h3>
+
+        {% if open_unit_condition_reports %}
+            <section class="card border-danger shadow-sm mb-4" aria-labelledby="unit-condition-reports-heading">
+                <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                    <h4 class="h6 fw-bold mb-0" id="unit-condition-reports-heading">
+                        <i class="fa-solid fa-triangle-exclamation me-2" aria-hidden="true"></i>Driver Unit Condition Reports
+                    </h4>
+                    <span class="badge bg-light text-danger">{{ open_unit_condition_reports|length }} needs review</span>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for report in open_unit_condition_reports %}
+                        <article class="list-group-item p-3">
+                            <div class="d-flex flex-column flex-md-row justify-content-between gap-3">
+                                <div>
+                                    <div class="fw-bold text-danger">
+                                        {{ report.get_condition_display }}:
+                                        {% if report.vehicle %}{{ report.vehicle.model_name }} ({{ report.vehicle.plate_number }})
+                                        {% else %}Unit no longer in fleet{% endif %}
+                                    </div>
+                                    <div class="small text-secondary">
+                                        Reported by {{ report.driver.name|default:"Unknown driver" }}
+                                        · {{ report.reported_at|date:"M j, Y g:i A" }}
+                                        {% if report.vehicle_request %}· Destination: {{ report.vehicle_request.destination }}{% endif %}
+                                    </div>
+                                    <p class="mb-0 mt-2">{{ report.description|linebreaksbr }}</p>
+                                </div>
+                                <form method="post" action="{% url 'dashboard_portal:logistics_dashboard' %}" class="align-self-md-center">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="review_unit_condition_report">
+                                    <input type="hidden" name="report_id" value="{{ report.id }}">
+                                    <button class="btn btn-sm btn-outline-success text-nowrap" type="submit">
+                                        <i class="fa-solid fa-check me-1" aria-hidden="true"></i>Mark reviewed
+                                    </button>
+                                </form>
+                            </div>
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endif %}
         
         <div class="card shadow-sm border-0 mb-5">
             <div class="panel-header-custom d-flex justify-content-between align-items-center">
@@ -108,6 +184,41 @@
                                 <span class="small text-muted">Identifier Tag</span>
                                 <div><span class="badge bg-secondary font-monospace">{{ vehicle.plate_number }}</span></div>
                             </div>
+                            {% if vehicle.status == 'DEPLOYED' %}
+                                <dl class="small border rounded bg-light p-2 mb-3">
+                                    <dt class="text-secondary">Deployment purpose</dt>
+                                    <dd class="mb-2">
+                                        {% if vehicle.active_tracking_request %}
+                                            {{ vehicle.active_tracking_request.get_purpose_display }}
+                                        {% elif vehicle.deployment_purpose %}
+                                            {{ vehicle.get_deployment_purpose_display }}
+                                        {% else %}—{% endif %}
+                                    </dd>
+                                    <dt class="text-secondary">Destination</dt>
+                                    <dd class="mb-2">
+                                        {% if vehicle.active_tracking_request %}
+                                            {{ vehicle.active_tracking_request.destination }}
+                                        {% elif vehicle.deployment_destination %}
+                                            {{ vehicle.deployment_destination }}
+                                        {% else %}—{% endif %}
+                                    </dd>
+                                    <dt class="text-secondary">Live location</dt>
+                                    <dd class="mb-0" data-manifest-location="{{ vehicle.id }}">
+                                        {% if vehicle.active_tracking_request.current_latitude != None and vehicle.active_tracking_request.current_longitude != None %}
+                                            <a class="fw-semibold" href="https://www.google.com/maps?q={{ vehicle.active_tracking_request.current_latitude }},{{ vehicle.active_tracking_request.current_longitude }}" target="_blank" rel="noopener noreferrer">
+                                                <i class="fa-solid fa-map-location-dot me-1" aria-hidden="true"></i>View on map
+                                            </a>
+                                            {% if vehicle.active_tracking_request.location_updated_at %}
+                                                <span class="d-block text-secondary" data-manifest-updated>Updated {{ vehicle.active_tracking_request.location_updated_at|date:"M j, Y g:i:s A" }}</span>
+                                            {% endif %}
+                                        {% elif vehicle.active_tracking_request %}
+                                            <span class="text-secondary">Waiting for driver phone location.</span>
+                                        {% else %}
+                                            <span class="text-secondary">No active trip location sharing.</span>
+                                        {% endif %}
+                                    </dd>
+                                </dl>
+                            {% endif %}
                             {% if vehicle.status == 'PENDING_DISPOSAL' %}
                             <div class="asset-card-disposal-reason small text-danger border rounded bg-danger-subtle p-2 mb-3">
                                 <strong>Disposal reason:</strong>
@@ -136,12 +247,12 @@
                             </form>
                             <div class="asset-card-actions mt-auto">
                                 {% if vehicle.status == 'OPERATIONAL' %}
-                                    <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                        <input type="hidden" name="action" value="deploy_vehicle">
-                                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fa-solid fa-rocket me-1"></i> DEPLOY</button>
-                                    </form>
+                                    <button type="button" class="btn btn-sm btn-primary w-100 deployment-confirm-trigger"
+                                            data-bs-toggle="modal" data-bs-target="#deploymentConfirmModal"
+                                            data-vehicle-id="{{ vehicle.id }}" data-vehicle-name="{{ vehicle.model_name }}"
+                                            data-vehicle-classification="land">
+                                        <i class="fa-solid fa-rocket me-1" aria-hidden="true"></i> DEPLOY
+                                    </button>
                                 {% elif vehicle.status == 'DEPLOYED' %}
                                     <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0">
                                         {% csrf_token %}
@@ -243,12 +354,12 @@
                             </form>
                             <div class="asset-card-actions mt-auto">
                                 {% if craft.status == 'OPERATIONAL' %}
-                                    <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                        <input type="hidden" name="action" value="deploy_vehicle">
-                                        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fa-solid fa-rocket me-1"></i> DEPLOY</button>
-                                    </form>
+                                    <button type="button" class="btn btn-sm btn-primary w-100 deployment-confirm-trigger"
+                                            data-bs-toggle="modal" data-bs-target="#deploymentConfirmModal"
+                                            data-vehicle-id="{{ craft.id }}" data-vehicle-name="{{ craft.model_name }}"
+                                            data-vehicle-classification="sea">
+                                        <i class="fa-solid fa-rocket me-1" aria-hidden="true"></i> DEPLOY
+                                    </button>
                                 {% elif craft.status == 'DEPLOYED' %}
                                     <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="m-0">
                                         {% csrf_token %}
@@ -293,6 +404,289 @@
         </div>
     </div>
 
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="vehicleRequestsDrawer" aria-labelledby="vehicleRequestsDrawerLabel">
+        <div class="offcanvas-header text-white" style="background-color: #1A365D;">
+            <div>
+                <h5 class="offcanvas-title fw-bold mb-1" id="vehicleRequestsDrawerLabel">
+                    <i class="fa-solid fa-bell text-warning me-2" aria-hidden="true"></i>Land Vehicle Requests
+                </h5>
+                <span class="small text-white-50">{{ pending_vehicle_requests.count }} pending review · {{ reviewed_vehicle_requests.count }} previous</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body bg-light">
+            <ul class="nav nav-pills nav-fill mb-3" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="pending-requests-tab" data-bs-toggle="tab"
+                            data-bs-target="#pending-requests-pane" type="button" role="tab"
+                            aria-controls="pending-requests-pane" aria-selected="true">
+                        Pending <span class="badge bg-warning text-dark">{{ pending_vehicle_requests.count }}</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="previous-requests-tab" data-bs-toggle="tab"
+                            data-bs-target="#previous-requests-pane" type="button" role="tab"
+                            aria-controls="previous-requests-pane" aria-selected="false">
+                        Previous <span class="badge bg-secondary">{{ reviewed_vehicle_requests.count }}</span>
+                    </button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="pending-requests-pane" role="tabpanel" aria-labelledby="pending-requests-tab">
+                    {% for vehicle_request in pending_vehicle_requests %}
+                <article class="card shadow-sm border-0 mb-3">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                            <h6 class="fw-bold mb-0">{{ vehicle_request.requester_name }}</h6>
+                            <span class="badge bg-warning text-dark">PENDING</span>
+                        </div>
+                        {% if vehicle_request.organization %}
+                            <div class="small text-muted mb-2">{{ vehicle_request.organization }}</div>
+                        {% endif %}
+                        <dl class="row small mb-2">
+                            <dt class="col-5">Purpose</dt><dd class="col-7">{{ vehicle_request.get_purpose_display }}</dd>
+                            <dt class="col-5">Requested for</dt><dd class="col-7">{{ vehicle_request.requested_for|date:"M j, Y g:i A" }}</dd>
+                            <dt class="col-5">Contact</dt><dd class="col-7">{{ vehicle_request.contact_number }}</dd>
+                            <dt class="col-5">Pickup</dt><dd class="col-7">{{ vehicle_request.pickup_location }}</dd>
+                            <dt class="col-5">Destination</dt><dd class="col-7">{{ vehicle_request.destination }}</dd>
+                        </dl>
+                        <p class="small mb-3">{{ vehicle_request.details|linebreaksbr }}</p>
+                        <form method="post" action="{% url 'dashboard_portal:logistics_dashboard' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="request_id" value="{{ vehicle_request.id }}">
+                            <label class="form-label small fw-semibold" for="request-driver-{{ vehicle_request.id }}">Available driver</label>
+                            <select class="form-select form-select-sm mb-3" id="request-driver-{{ vehicle_request.id }}" name="driver_id" required>
+                                <option value="">Select a driver</option>
+                                {% for driver in available_land_request_drivers %}
+                                    <option value="{{ driver.id }}">{{ driver.name }}{% if driver.phone_number %} — {{ driver.phone_number }}{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            {% if not available_land_request_drivers %}
+                                <div class="small text-danger mb-3">No available land drivers can be assigned right now.</div>
+                            {% endif %}
+                            <label class="form-label small fw-semibold" for="request-vehicle-{{ vehicle_request.id }}">Available vehicle</label>
+                            <select class="form-select form-select-sm mb-3" id="request-vehicle-{{ vehicle_request.id }}" name="assigned_vehicle_id" required>
+                                <option value="">Select a vehicle</option>
+                                {% for vehicle in available_land_request_vehicles %}
+                                    <option value="{{ vehicle.id }}">{{ vehicle.model_name }} — {{ vehicle.plate_number }} ({{ vehicle.vehicle_type.name }})</option>
+                                {% endfor %}
+                            </select>
+                            {% if not available_land_request_vehicles %}
+                                <div class="small text-danger mb-3">No available land vehicles can be assigned right now.</div>
+                            {% endif %}
+                            <div class="form-text mb-3">After approval, share the private location link with the assigned driver to enable GPS updates from their phone.</div>
+                            <label class="form-label small fw-semibold" for="staff-notes-{{ vehicle_request.id }}">Review notes (optional)</label>
+                            <textarea class="form-control form-control-sm mb-3" id="staff-notes-{{ vehicle_request.id }}"
+                                      name="staff_notes" rows="2" placeholder="Add a note for the record"></textarea>
+                            <div class="d-flex gap-2">
+                                <button type="submit" name="action" value="approve_vehicle_request" class="btn btn-sm btn-success w-100"
+                                        {% if not available_land_request_drivers or not available_land_request_vehicles %}disabled{% endif %}>
+                                    <i class="fa-solid fa-check me-1" aria-hidden="true"></i>Approve
+                                </button>
+                                <button type="submit" name="action" value="reject_vehicle_request" class="btn btn-sm btn-outline-danger w-100" formnovalidate>
+                                    <i class="fa-solid fa-xmark me-1" aria-hidden="true"></i>Reject
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </article>
+                    {% empty %}
+                        <div class="text-center text-muted py-5">
+                            <i class="fa-solid fa-circle-check fs-2 mb-3 text-success" aria-hidden="true"></i>
+                            <p class="mb-0">No pending land vehicle requests.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="tab-pane fade" id="previous-requests-pane" role="tabpanel" aria-labelledby="previous-requests-tab">
+                    {% for vehicle_request in reviewed_vehicle_requests %}
+                        <article class="card shadow-sm border-0 mb-3">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                    <h6 class="fw-bold mb-0">{{ vehicle_request.requester_name }}</h6>
+                                    {% if vehicle_request.status == 'APPROVED' %}
+                                        <span class="badge bg-success">APPROVED</span>
+                                    {% elif vehicle_request.status == 'DECLINED' %}
+                                        <span class="badge bg-danger">DENIED</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ vehicle_request.get_status_display|upper }}</span>
+                                    {% endif %}
+                                </div>
+                                {% if vehicle_request.organization %}
+                                    <div class="small text-muted mb-2">{{ vehicle_request.organization }}</div>
+                                {% endif %}
+                                <dl class="row small mb-2">
+                                    <dt class="col-5">Purpose</dt><dd class="col-7">{{ vehicle_request.get_purpose_display }}</dd>
+                                    <dt class="col-5">Requested for</dt><dd class="col-7">{{ vehicle_request.requested_for|date:"M j, Y g:i A" }}</dd>
+                                    <dt class="col-5">Contact</dt><dd class="col-7">{{ vehicle_request.contact_number }}</dd>
+                                    <dt class="col-5">Pickup</dt><dd class="col-7">{{ vehicle_request.pickup_location }}</dd>
+                                    <dt class="col-5">Destination</dt><dd class="col-7">{{ vehicle_request.destination }}</dd>
+                                    <dt class="col-5">Submitted</dt><dd class="col-7">{{ vehicle_request.submitted_at|date:"M j, Y g:i A" }}</dd>
+                                    {% if vehicle_request.assigned_driver %}
+                                        <dt class="col-5">Assigned driver</dt><dd class="col-7">{{ vehicle_request.assigned_driver.name }}</dd>
+                                    {% endif %}
+                                    {% if vehicle_request.assigned_vehicle %}
+                                        <dt class="col-5">Assigned vehicle</dt><dd class="col-7">{{ vehicle_request.assigned_vehicle.model_name }} — {{ vehicle_request.assigned_vehicle.plate_number }}</dd>
+                                    {% endif %}
+                                </dl>
+                                <p class="small mb-2">{{ vehicle_request.details|linebreaksbr }}</p>
+                                {% if vehicle_request.staff_notes %}
+                                    <div class="small border-top pt-2 mt-2">
+                                        <strong>Logistics notes:</strong> {{ vehicle_request.staff_notes|linebreaksbr }}
+                                    </div>
+                                {% endif %}
+                                {% if vehicle_request.is_tracking_active %}
+                                    <div class="small mt-3">
+                                        <a class="d-inline-block me-2" href="{% url 'dashboard_portal:driver_location_sharing' vehicle_request.tracking_token %}" target="_blank" rel="noopener noreferrer">
+                                            <i class="fa-solid fa-location-crosshairs me-1" aria-hidden="true"></i>Open private driver sharing link
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-primary share-driver-link"
+                                                data-share-url="{% url 'dashboard_portal:driver_location_sharing' vehicle_request.tracking_token %}"
+                                                data-share-driver="{{ vehicle_request.assigned_driver.name }}">
+                                            <i class="fa-solid fa-share-nodes me-1" aria-hidden="true"></i>Send link to driver
+                                        </button>
+                                        <div class="text-muted">Expires {{ vehicle_request.tracking_expires_at|date:"M j, Y g:i A" }}</div>
+                                    </div>
+                                {% endif %}
+                                {% if vehicle_request.status == 'APPROVED' %}
+                                    <form method="post" action="{% url 'dashboard_portal:logistics_dashboard' %}" class="mt-3">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="complete_vehicle_request">
+                                        <input type="hidden" name="request_id" value="{{ vehicle_request.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-success">
+                                            <i class="fa-solid fa-flag-checkered me-1" aria-hidden="true"></i>End trip
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </article>
+                    {% empty %}
+                        <div class="text-center text-muted py-5">
+                            <i class="fa-solid fa-clock-rotate-left fs-2 mb-3" aria-hidden="true"></i>
+                            <p class="mb-0">No previous land vehicle requests.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addDriverAccountModal" tabindex="-1" aria-labelledby="addDriverAccountModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background-color: #1A365D;">
+                    <h5 class="modal-title fw-bold" id="addDriverAccountModalLabel">
+                        <i class="fa-solid fa-user-plus text-info me-2" aria-hidden="true"></i>Create Driver Login
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="{% url 'dashboard_portal:logistics_dashboard' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_driver_account">
+                    <div class="modal-body">
+                        <p class="small text-secondary">Create login credentials for a new driver, or link an existing driver record that does not have an account yet.</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="account-driver-id">Existing driver (optional)</label>
+                            <select class="form-select" id="account-driver-id" name="driver_id">
+                                <option value="">Create a new driver record</option>
+                                {% for driver in drivers_without_accounts %}
+                                    <option value="{{ driver.id }}">{{ driver.name }}{% if driver.license_number %} — {{ driver.license_number }}{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3" id="new-driver-fields">
+                            <label class="form-label fw-semibold" for="account-driver-name">Driver full name</label>
+                            <input class="form-control" type="text" id="account-driver-name" name="name" maxlength="100">
+                        </div>
+                        <div class="row">
+                            <div class="col-sm-6 mb-3" id="new-driver-license">
+                                <label class="form-label fw-semibold" for="account-driver-license">License number</label>
+                                <input class="form-control" type="text" id="account-driver-license" name="license_number" maxlength="50">
+                            </div>
+                            <div class="col-sm-6 mb-3" id="new-driver-phone">
+                                <label class="form-label fw-semibold" for="account-driver-phone">Phone number</label>
+                                <input class="form-control" type="tel" id="account-driver-phone" name="phone_number" maxlength="20">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="account-driver-username">Username</label>
+                            <input class="form-control" type="text" id="account-driver-username" name="username" maxlength="150" autocomplete="username" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="account-driver-password">Temporary password</label>
+                            <input class="form-control" type="password" id="account-driver-password" name="password" autocomplete="new-password" required>
+                            <div class="form-text">Share this password securely with the driver. They can sign in from the PDRRMO login page.</div>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-sm btn-primary">Create driver login</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deploymentConfirmModal" tabindex="-1" aria-labelledby="deploymentConfirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background-color: #1A365D;">
+                    <h5 class="modal-title fw-bold" id="deploymentConfirmModalLabel">
+                        <i class="fa-solid fa-clipboard-check text-warning me-2" aria-hidden="true"></i>Confirm Vehicle Deployment
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="{% url 'dashboard_portal:logistics_dashboard' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="deploy_vehicle">
+                    <input type="hidden" name="vehicle_id" id="deployment-vehicle-id">
+                    <div class="modal-body">
+                        <p class="mb-3">Confirm deployment details for <strong id="deployment-vehicle-name"></strong>.</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="deployment-purpose">Purpose of deployment</label>
+                            <select class="form-select" name="deployment_purpose" id="deployment-purpose" required>
+                                <option value="" selected disabled>Select a purpose</option>
+                                {% for value, label in deployment_purpose_choices %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="deployment-destination">Destination</label>
+                            <input class="form-control" type="text" name="deployment_destination" id="deployment-destination"
+                                   maxlength="255" required placeholder="Enter deployment destination">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="deployment-driver">Assign driver / operator</label>
+                            <select class="form-select" name="driver_id" id="deployment-driver" required>
+                                <option value="" selected disabled>Select an available driver / operator</option>
+                                {% for driver in land_drivers %}
+                                    <option value="{{ driver.id }}" data-driver-classification="land">
+                                        {{ driver.name }}{% if driver.phone_number %} — {{ driver.phone_number }}{% endif %}
+                                    </option>
+                                {% endfor %}
+                                {% for driver in sea_drivers %}
+                                    <option value="{{ driver.id }}" data-driver-classification="sea">
+                                        {{ driver.name }}{% if driver.phone_number %} — {{ driver.phone_number }}{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">Only currently available operators qualified for this asset type are selectable.</div>
+                        </div>
+                        <div class="alert alert-warning mb-0">
+                            Confirming will mark this asset as deployed and show its purpose and destination in the public field deployment list.
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="fa-solid fa-rocket me-1" aria-hidden="true"></i>Confirm and deploy
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div class="modal fade" id="addVehicleModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
@@ -317,7 +711,7 @@
                             <select name="vehicle_type" class="form-select" required>
                                 <option value="" disabled selected>Select registered type category</option>
                                 {% for type in types %}
-                                <option value="{{ type.id }}">{{ type.name }}</option>
+                                    <option value="{{ type.id }}">{{ type.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -331,11 +725,191 @@
         </div>
     </div>
 
+    <div class="modal fade" id="generateReportModal" tabindex="-1" aria-labelledby="generateReportModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background-color: #1A365D;">
+                    <h5 class="modal-title fw-bold" id="generateReportModalLabel">
+                        <i class="fa-solid fa-file-csv text-warning me-2" aria-hidden="true"></i>Generate Land Dispatch Report
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="get" action="{% url 'dashboard_portal:land_dispatch_report' %}">
+                    <div class="modal-body">
+                        <p class="text-muted">Select the data sections and output format for your report.</p>
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="dataset" value="land_fleet" id="report-land-fleet" required>
+                            <label class="form-check-label fw-semibold" for="report-land-fleet">Land fleet assets</label>
+                            <div class="form-text">Active land vehicles, their type, identifier, status, and assigned operator.</div>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="dataset" value="vehicle_requests" id="report-vehicle-requests">
+                            <label class="form-check-label fw-semibold" for="report-vehicle-requests">Land vehicle requests</label>
+                            <div class="form-text">Request details, purpose, review status, and logistics notes.</div>
+                        </div>
+                        <div class="mt-4">
+                            <label class="form-label fw-semibold" for="report-format">Report format</label>
+                            <select class="form-select" name="format" id="report-format" required>
+                                <option value="csv" selected>CSV (.csv)</option>
+                                <option value="pdf">PDF (.pdf)</option>
+                                <option value="excel">Excel (.xlsx)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-sm btn-orange">
+                            <i class="fa-solid fa-download me-1" aria-hidden="true"></i>Download Report
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'fleet/js/dashboard_views.js' %}"></script>
     <script src="{% static 'fleet/js/dashboard_print.js' %}"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
+            const operationsDrawerElement = document.getElementById("operationsDrawer");
+            const operationsDrawer = bootstrap.Offcanvas.getOrCreateInstance(operationsDrawerElement);
+            let pendingMenuAction = null;
+
+            document.querySelectorAll(".dashboard-menu-action").forEach(button => {
+                button.addEventListener("click", () => {
+                    pendingMenuAction = {
+                        action: button.dataset.menuAction,
+                        modalTarget: button.dataset.modalTarget
+                    };
+                    operationsDrawer.hide();
+                });
+            });
+
+            operationsDrawerElement.addEventListener("hidden.bs.offcanvas", () => {
+                if (!pendingMenuAction) return;
+                const action = pendingMenuAction;
+                pendingMenuAction = null;
+
+                if (action.action === "print") {
+                    window.print();
+                } else if (action.action === "requests") {
+                    bootstrap.Offcanvas.getOrCreateInstance(
+                        document.getElementById("vehicleRequestsDrawer")
+                    ).show();
+                } else if (action.action === "modal" && action.modalTarget) {
+                    const modalElement = document.querySelector(action.modalTarget);
+                    if (modalElement) bootstrap.Modal.getOrCreateInstance(modalElement).show();
+                }
+            });
+
+            const locationsUrl = "{{ trip_locations_url|escapejs }}";
+            async function refreshManifestLocations() {
+                try {
+                    const response = await fetch(locationsUrl, {
+                        cache: "no-store",
+                        headers: { "Accept": "application/json" }
+                    });
+                    if (!response.ok) throw new Error("Could not refresh deployed vehicle locations.");
+                    const payload = await response.json();
+                    const tripsByVehicle = new Map(
+                        payload.trips.map(trip => [String(trip.vehicle_id), trip])
+                    );
+
+                    document.querySelectorAll("[data-manifest-location]").forEach(location => {
+                        const trip = tripsByVehicle.get(location.dataset.manifestLocation);
+                        if (!trip) {
+                            if (location.querySelector("a")) {
+                                location.replaceChildren();
+                                const ended = document.createElement("span");
+                                ended.className = "text-secondary";
+                                ended.textContent = "No active trip location sharing.";
+                                location.append(ended);
+                            }
+                            return;
+                        }
+                        location.replaceChildren();
+                        if (trip.latitude === null || trip.longitude === null) {
+                            const waiting = document.createElement("span");
+                            waiting.className = "text-secondary";
+                            waiting.textContent = "Waiting for driver phone location.";
+                            location.append(waiting);
+                            return;
+                        }
+
+                        const mapLink = document.createElement("a");
+                        mapLink.className = "fw-semibold";
+                        mapLink.href = `https://www.google.com/maps?q=${encodeURIComponent(trip.latitude)},${encodeURIComponent(trip.longitude)}`;
+                        mapLink.target = "_blank";
+                        mapLink.rel = "noopener noreferrer";
+                        mapLink.textContent = "View on map";
+                        location.append(mapLink);
+                        if (trip.updated_at) {
+                            const updated = document.createElement("span");
+                            updated.className = "d-block text-secondary";
+                            updated.textContent = `Updated ${new Date(trip.updated_at).toLocaleString()}`;
+                            location.append(updated);
+                        }
+                    });
+                } catch (error) {
+                    console.error("Manifest location refresh failed:", error);
+                }
+            }
+            refreshManifestLocations();
+            window.setInterval(refreshManifestLocations, 15000);
+
+            const accountDriverSelect = document.getElementById("account-driver-id");
+            const newDriverFields = document.querySelectorAll("#new-driver-fields, #new-driver-license, #new-driver-phone");
+            const newDriverName = document.getElementById("account-driver-name");
+            function updateNewDriverFields() {
+                const creatingNewDriver = !accountDriverSelect.value;
+                newDriverFields.forEach(field => field.classList.toggle("d-none", !creatingNewDriver));
+                newDriverName.required = creatingNewDriver;
+            }
+            accountDriverSelect.addEventListener("change", updateNewDriverFields);
+            updateNewDriverFields();
+
+            const deploymentModal = document.getElementById("deploymentConfirmModal");
+            deploymentModal.addEventListener("show.bs.modal", function (event) {
+                const trigger = event.relatedTarget;
+                const classification = trigger.dataset.vehicleClassification;
+                document.getElementById("deployment-vehicle-id").value = trigger.dataset.vehicleId;
+                document.getElementById("deployment-vehicle-name").textContent = trigger.dataset.vehicleName;
+                document.getElementById("deployment-purpose").value = "";
+                document.getElementById("deployment-destination").value = "";
+
+                const driverSelect = document.getElementById("deployment-driver");
+                driverSelect.value = "";
+                Array.from(driverSelect.options).forEach(option => {
+                    if (!option.dataset.driverClassification) return;
+                    const availableForAsset = option.dataset.driverClassification === classification;
+                    option.hidden = !availableForAsset;
+                    option.disabled = !availableForAsset;
+                });
+            });
+
+            document.querySelectorAll(".share-driver-link").forEach(button => {
+                button.addEventListener("click", async () => {
+                    const driverUrl = new URL(button.dataset.shareUrl, window.location.origin).href;
+                    try {
+                        if (navigator.share) {
+                            await navigator.share({
+                                title: "PDRRMO Driver Location Sharing",
+                                text: `Private live-location link for ${button.dataset.shareDriver}:`,
+                                url: driverUrl
+                            });
+                            return;
+                        }
+                        await navigator.clipboard.writeText(driverUrl);
+                        button.innerHTML = '<i class="fa-solid fa-check me-1" aria-hidden="true"></i>Link copied';
+                    } catch (error) {
+                        if (error.name === "AbortError") return;
+                        console.error("Could not share the driver tracking link:", error);
+                        window.prompt("Copy and send this private driver link:", driverUrl);
+                    }
+                });
+            });
+
             // Toast handler
             const alertContainer = document.getElementById("floating-alert-container");
             if (alertContainer) {

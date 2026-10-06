@@ -1,0 +1,146 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#12345a">
+    <title>Driver Dashboard | PDRRMO Fleet</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { min-height: 100vh; background: #f1f5f9; color: #172033; }
+        .driver-header { background: #12345a; border-bottom: 4px solid #f07b21; color: white; }
+        .unit-card { border: 0; border-radius: .9rem; }
+        .driver-action { min-height: 46px; }
+        .tracker-card { border: 0; border-radius: .9rem; }
+        .tracker-actions .btn { min-height: 52px; font-weight: 700; }
+        #tracking-status { min-height: 3rem; }
+    </style>
+</head>
+<body>
+    <header class="driver-header py-3">
+        <div class="container d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <div>
+                <div class="small text-white-50">PDRRMO FLEET</div>
+                <h1 class="h4 fw-bold mb-0">Driver Dashboard</h1>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <span><i class="fa-solid fa-user-check me-1 text-info" aria-hidden="true"></i>{{ driver.name }}</span>
+                <form action="{% url 'dashboard_portal:custom_logout' %}" method="post">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-light" type="submit">Log out</button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <main class="container py-4 py-md-5" id="driver-dashboard">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}success{% endif %}" role="status">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% if active_tracking_request %}
+            {% include "fleet/driver_location_panel.html" %}
+        {% else %}
+            <div class="alert alert-info" role="status">
+                No active trip is currently assigned for live location sharing.
+            </div>
+        {% endif %}
+        <div class="mb-4">
+            <h2 class="h3 fw-bold">Your assigned units</h2>
+            <p class="text-secondary mb-0">View your assigned units, recent maintenance history, and report unit damage to Logistics.</p>
+        </div>
+
+        <div class="row g-3">
+            {% for vehicle in assigned_vehicles %}
+                <div class="col-12 col-lg-6">
+                    <article class="card unit-card shadow-sm h-100">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <h3 class="h5 fw-bold mb-1">{{ vehicle.model_name }}</h3>
+                                    <div class="text-secondary">{{ vehicle.vehicle_type.name }} · {{ vehicle.plate_number }}</div>
+                                </div>
+                                <span class="badge {% if vehicle.status == 'DEPLOYED' %}bg-primary{% elif vehicle.status == 'MAINTENANCE' %}bg-danger{% else %}bg-success{% endif %}">
+                                    {{ vehicle.get_status_display }}
+                                </span>
+                            </div>
+                            <dl class="row mt-3 mb-3">
+                                <dt class="col-4 text-secondary">Purpose</dt>
+                                <dd class="col-8">
+                                    {% if vehicle.active_request %}{{ vehicle.active_request.get_purpose_display }}
+                                    {% elif vehicle.deployment_purpose %}{{ vehicle.get_deployment_purpose_display }}
+                                    {% else %}—{% endif %}
+                                </dd>
+                                <dt class="col-4 text-secondary">Destination</dt>
+                                <dd class="col-8">
+                                    {% if vehicle.active_request %}{{ vehicle.active_request.destination }}
+                                    {% elif vehicle.deployment_destination %}{{ vehicle.deployment_destination }}
+                                    {% else %}—{% endif %}
+                                </dd>
+                            </dl>
+
+                            <section class="border rounded p-3 mb-3" aria-label="Recent maintenance logs for {{ vehicle.model_name }}">
+                                <h4 class="h6 fw-bold mb-2">
+                                    <i class="fa-solid fa-screwdriver-wrench me-1 text-warning" aria-hidden="true"></i>
+                                    Recent maintenance
+                                </h4>
+                                {% for log in vehicle.recent_maintenance_logs %}
+                                    <article class="{% if not forloop.first %}border-top pt-2 mt-2{% endif %}">
+                                        <div class="fw-semibold">{{ log.service_item }}</div>
+                                        {% if log.details %}<p class="small text-secondary mb-1">{{ log.details }}</p>{% endif %}
+                                        <div class="small text-muted">
+                                            {{ log.logged_at|date:"M j, Y g:i A" }}
+                                            {% if log.logged_by %}· {{ log.logged_by.get_full_name|default:log.logged_by.username }}{% endif %}
+                                        </div>
+                                    </article>
+                                {% empty %}
+                                    <p class="small text-secondary mb-0">No maintenance logs recorded for this unit yet.</p>
+                                {% endfor %}
+                            </section>
+
+                            {% if vehicle.status == 'DEPLOYED' %}
+                            <details>
+                                <summary class="text-danger fw-semibold">Report this unit as damaged or destroyed</summary>
+                                <form method="post" class="mt-3">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="report_unit_condition">
+                                    <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                    <div class="mb-3">
+                                        <label class="form-label" for="condition-{{ vehicle.id }}">Unit condition</label>
+                                        <select class="form-select" id="condition-{{ vehicle.id }}" name="condition" required>
+                                            <option value="" selected disabled>Select condition</option>
+                                            <option value="DAMAGED">Damaged</option>
+                                            <option value="DESTROYED">Destroyed</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="description-{{ vehicle.id }}">What happened?</label>
+                                        <textarea class="form-control" id="description-{{ vehicle.id }}" name="description"
+                                                  rows="3" maxlength="2000" required></textarea>
+                                    </div>
+                                    <p class="small text-secondary">Logistics will review the report. The unit status will not change automatically.</p>
+                                    <button class="btn btn-outline-danger driver-action w-100" type="submit">Submit report to Logistics</button>
+                                </form>
+                            </details>
+                            {% endif %}
+                        </div>
+                    </article>
+                </div>
+            {% empty %}
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-body text-center py-5">
+                            <i class="fa-solid fa-truck-fast fs-2 text-secondary mb-3" aria-hidden="true"></i>
+                            <h3 class="h5">No deployed units assigned</h3>
+                            <p class="text-secondary mb-0">Your assigned units will appear here when Logistics assigns them.</p>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </main>
+</body>
+</html>
