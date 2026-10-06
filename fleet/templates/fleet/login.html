@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,138 +6,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDRRMO FMS | Secure Login</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        /* Corporate Command Center Layout Engine */
-        :root {
-            --brand-blue: #0f172a;       /* Corporate Slate Navy */
-            --brand-orange: #ea580c;     /* Alert Orange Accent */
-            --brand-bg: #f1f5f9;         /* Clean Executive Gray Canvas */
-            --text-main: #0f172a;        /* High-Definition Slate Text */
-            --pdrrmo-blue-accent: #0076c0; /* Blue taken from PDRRMO logo hands */
-        }
-
-        /* MINIMALIST MONOCHROME OVERRIDE */
-        body { 
-            background-color: #ffffff; 
-            color: var(--text-main); 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            min-height: 100vh;
-        }
-
-        .login-card { 
-            border: 2px solid var(--brand-blue);
-            background-color: #ffffff; 
-            border-radius: 0px; /* Sharp corporate architectural edges */
-            padding: 45px; 
-            width: 100%;
-            max-width: 440px;
-        }
-
-        /* Stark Command Center Alert Banner with smooth transition support */
-        .alert-command {
-            background-color: #ffffff;
-            border: 2px solid var(--brand-orange);
-            color: var(--brand-orange);
-            font-size: 0.8rem;
-            font-weight: 700;
-            border-radius: 0px;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            transition: opacity 0.5s ease-out;
-        }
-
-        /* Standardized Form Inputs with High-Contrast Sharp Outlines */
-        .form-control {
-            background-color: #ffffff;
-            border: 2px solid var(--brand-blue);
-            color: var(--text-main);
-            padding: 14px;
-            font-size: 0.95rem;
-            border-radius: 0px;
-            font-weight: 500;
-        }
-        .form-control::placeholder {
-            color: #94a3b8;
-        }
-        .form-control:focus {
-            background-color: #ffffff;
-            border-color: var(--pdrrmo-blue-accent);
-            color: var(--text-main);
-            box-shadow: none; /* No glow, keeping design stark and intentional */
-        }
-
-        /* Executive Command Button - Solid Stark Slab */
-        .btn-command { 
-            background-color: var(--brand-blue); 
-            color: #ffffff; 
-            border: 2px solid var(--brand-blue); 
-            font-weight: 700; 
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            padding: 16px;
-            border-radius: 0px;
-            transition: all 0.1s ease-in-out;
-        }
-        .btn-command:hover { 
-            background-color: #ffffff;
-            color: var(--brand-blue);
-        }
-
-        /* Secondary Public Hub Action - Outline Slab */
-        .btn-public-hub {
-            border: 2px solid #cbd5e1;
-            color: #64748b;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-size: 0.8rem;
-            padding: 14px;
-            background-color: #ffffff;
-            border-radius: 0px;
-            transition: all 0.1s ease-in-out;
-            text-decoration: none;
-            display: block;
-        }
-        .btn-public-hub:hover {
-            background-color: #f8fafc;
-            color: var(--text-main);
-            border-color: var(--brand-blue);
-        }
-
-        .system-title {
-            color: var(--brand-blue);
-            font-weight: 900;
-            letter-spacing: -0.03em;
-            font-size: 1.75rem;
-            line-height: 1.1;
-        }
-
-        .system-index {
-            font-family: ui-monospace, monospace;
-            font-size: 0.75rem;
-            font-weight: 700;
-            color: var(--brand-blue);
-            letter-spacing: 1px;
-        }
-
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'fleet/css/login.css' %}">
 </head>
-<body class="d-flex align-items-center justify-content-center p-3">
+<body class="login-page">
+    <header class="login-topbar">
+        <div class="login-brand">
+            <span class="login-brand-mark">PDRRMO</span>
+            <span>Fleet Management System</span>
+        </div>
+    </header>
 
-    <div class="login-card">
-
-        <div class="pb-3 mb-4 text-start">
-            <div class="system-index text-uppercase mb-2">REF // FLEET OPS</div>
-            <h1 class="system-title m-0">Fleet Operations Center</h1>
-            <p class="text-uppercase text-muted fw-bold small m-0 mt-2" style="letter-spacing: 1.5px; font-size: 0.7rem;">Secure Sign-In Required</p>
+    <main class="login-main">
+    <section class="login-card">
+        <div class="login-card-header">
+            <div class="login-eyebrow">Fleet Operations Center</div>
+            <h1 class="login-title">Sign in to your account</h1>
+            <p class="login-subtitle">Use your authorized fleet account to continue.</p>
         </div>
         
         {% if messages %}
-            <div class="messages mb-4" id="alert-container">
+            <div class="login-alert-container" id="alert-container">
                 {% for message in messages %}
-                    <div class="alert alert-command p-3 fade show d-flex align-items-center" role="alert">
-                        <span class="me-2">⚠️</span>
+                    <div class="alert login-alert {% if message.tags == 'success' %}login-alert--success{% endif %} p-3 fade show" role="alert">
+                        <i class="login-alert-icon fa-solid {% if message.tags == 'success' %}fa-circle-check{% else %}fa-triangle-exclamation{% endif %}" aria-hidden="true"></i>
                         <div>{{ message }}</div>
+                        <button type="button" class="btn-close ms-auto" aria-label="Dismiss notification" onclick="this.closest('.login-alert').remove()"></button>
                     </div>
                 {% endfor %}
             </div>
@@ -146,27 +41,28 @@
             {% csrf_token %}
             
             <div class="mb-3">
-                <label class="form-label text-dark small fw-bold text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 1px;">01. Username</label>
-                <input type="text" name="username" class="form-control" placeholder="Enter username" required autofocus>
+                <label for="login-username" class="form-label">Username</label>
+                <input id="login-username" type="text" name="username" class="form-control" placeholder="Enter username" autocomplete="username" required autofocus>
             </div>
             
             <div class="mb-4">
-                <label class="form-label text-dark small fw-bold text-uppercase mb-2" style="font-size: 0.7rem; letter-spacing: 1px;">02. Password</label>
-                <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+                <label for="login-password" class="form-label">Password</label>
+                <input id="login-password" type="password" name="password" class="form-control" placeholder="Enter password" autocomplete="current-password" required>
             </div>
             
             <div class="d-grid gap-2 pt-2">
-                <button type="submit" class="btn btn-command">Sign In</button>
-                <a href="{% url 'dashboard_portal:homepage' %}" class="btn-public-hub text-center">
+                <button type="submit" class="btn login-submit">Sign In</button>
+                <a href="{% url 'dashboard_portal:homepage' %}" class="login-secondary-link">
                     Public Homepage
                 </a>
             </div>
         </form>
 
-        <div class="text-start mt-5 pt-3 border-top border-dark text-muted fw-medium" style="font-size: 0.65rem; letter-spacing: 0.5px; line-height: 1.5;">
+        <div class="login-meta">
             OWNER: PROVINCIAL DRRM OFFICE, PALAWAN<br>
             CLASSIFICATION: INTERNAL MANAGEMENT PLATFORM
-        </div>
+        </section>
+        </main>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
