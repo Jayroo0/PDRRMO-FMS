@@ -19,13 +19,12 @@ class Driver(models.Model):
         return self.name
 
 
-# -----------------------------------
 class VehicleAsset(models.Model):
     ASSET_TYPES = [
         ('LAND', 'Land Transportation'),
         ('SEA', 'Seacraft Vessel'),
     ]
-    name = models.CharField(max_length=100)  # e.g., "Rescue Truck 01", "Speedboat Delta"
+    name = models.CharField(max_length=100)
     classification = models.CharField(max_length=4, choices=ASSET_TYPES)
     plate_or_hull_number = models.CharField(max_length=50, unique=True)
 
@@ -47,10 +46,6 @@ class OperatorProfile(models.Model):
 
 
 class VehicleAssignment(models.Model):
-    """
-    The Command Center Engine that pairs assets to their legally valid operators.
-    """
-
     asset = models.ForeignKey(VehicleAsset, on_delete=models.CASCADE)
     operator = models.ForeignKey(OperatorProfile, on_delete=models.CASCADE)
     assigned_at = models.DateTimeField(auto_now_add=True)
@@ -59,29 +54,19 @@ class VehicleAssignment(models.Model):
     def clean(self):
         from django.core.exceptions import ValidationError
 
-        # Guard Clause: Prevent Land Drivers from operating Seacrafts
         if self.asset.classification == 'SEA' and self.operator.crew_role != 'CAPTAIN':
             raise ValidationError({
-                'operator': (
-                    "Security Exception: Seacrafts require a certified Seacraft Operator/Captain."
-                )
+                'operator': "Security Exception: Seacrafts require a certified Seacraft Operator/Captain."
             })
 
-        # Guard Clause: Prevent Seacraft Skippers from driving Land Vehicles
         if self.asset.classification == 'LAND' and self.operator.crew_role != 'DRIVER':
             raise ValidationError({
-                'operator': (
-                    "Security Exception: Land vehicles require a designated Land Transportation"
-                    " Driver."
-                )
+                'operator': "Security Exception: Land vehicles require a designated Land Transportation Driver."
             })
 
     def save(self, *args, **kwargs):
-        self.full_clean()  # Force validation engine check before write
+        self.full_clean()
         super().save(*args, **kwargs)
-
-
-# -----------------------------------
 
 
 class Vehicle(models.Model):
@@ -99,7 +84,6 @@ class Vehicle(models.Model):
 
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='OPERATIONAL')
 
-    # Strictly limits one personnel to 1 fleet asset
     assigned_driver = models.OneToOneField(
         Driver,
         on_delete=models.SET_NULL,
@@ -108,8 +92,9 @@ class Vehicle(models.Model):
         related_name='assigned_vehicle',
     )
 
-    # Deployment tracking parameters
+    # PERSISTENT DEPLOYMENT TRACKING PARAMETERS
     deployment_location = models.CharField(max_length=255, blank=True, null=True)
+    deployment_purpose = models.CharField(max_length=255, blank=True, null=True)
     deployment_time = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):

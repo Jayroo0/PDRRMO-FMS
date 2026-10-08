@@ -304,7 +304,7 @@
             <div class="col-12">
                 <div class="panel-container" style="border-left: 4px solid var(--status-dep);">
                     <div class="panel-heading-blue d-flex justify-content-between align-items-center">
-                        <span><i class="fa-solid fa-clock-history me-2 text-primary"></i>ACTIVE FIELD DEPLOYMENTS</span>
+                        <span><i class="fa-solid fa-clock-rotate-left me-2 text-primary"></i>ACTIVE FIELD DEPLOYMENTS</span>
                         <span class="badge bg-light text-dark font-monospace border fw-bold" style="font-size: 0.8rem; padding: 5px 10px;">Registry Load: {{ deployed_count }}</span>
                     </div>
                     <div class="table-responsive dashboard-view-list" data-view-list="active-deployments" data-view-type="table" data-view-default="list">
@@ -315,7 +315,8 @@
                                     <th>Equipment Model</th>
                                     <th>Identifier (Plate/Hull)</th>
                                     <th>Current Status</th>
-                                    <th>Deployment Location, Mission &amp; Time</th>
+                                    <th>Deployment Location &amp; Timestamp</th>
+                                    <th>Purpose of Deployment / Mission</th>
                                     <th>Assigned Crew / Driver</th>
                                 </tr>
                             </thead>
@@ -328,28 +329,21 @@
                                         <td><span class="code-tag-blue">{{ vehicle.plate_number }}</span></td>
                                         <td><span class="status-pill dep">{{ vehicle.status }}</span></td>
                                         <td>
-                                            {% if vehicle.deployment_location or vehicle.deployment_purpose or vehicle.deployment_time %}
-                                                {% if vehicle.deployment_location %}
-                                                    <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-danger me-1"></i> {{ vehicle.deployment_location }}</div>
-                                                {% else %}
-                                                    <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-danger me-1"></i> Field Deployment Zone</div>
-                                                {% endif %}
-                                                {% if vehicle.deployment_purpose %}
-                                                    <div class="small fw-semibold text-dark mt-1"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission: {{ vehicle.deployment_purpose }}</div>
-                                                {% endif %}
-                                                {% if vehicle.deployment_time %}
-                                                    <div class="text-muted small font-monospace mt-1"><i class="fa-solid fa-clock me-1"></i> {{ vehicle.deployment_time }}</div>
-                                                {% endif %}
-                                            {% else %}
-                                                <span class="text-muted opacity-60 fw-normal">En Route / Active</span>
-                                            {% endif %}
+                                            <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-danger me-1"></i> {{ vehicle.deployment_location|default:"Field Deployment Zone" }}</div>
+                                            <div class="text-muted small font-monospace mt-1"><i class="fa-solid fa-clock me-1"></i> {{ vehicle.deployment_time|date:"M d, Y - H:i"|default:"Active Dispatch" }}</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-warning-subtle text-dark border border-warning fw-bold p-2 text-wrap" style="max-width: 280px; text-align: left; display: inline-block;">
+                                                <i class="fa-solid fa-bullseye text-warning me-1"></i> {{ vehicle.deployment_purpose|default:"Disaster Relief & Supplies Delivery" }}
+                                            </span>
                                         </td>
                                         <td class="fw-semibold text-secondary">
-                                            {% if vehicle.assigned_driver %}<i class="fa-solid fa-user-check text-success me-1"></i> {{ vehicle.assigned_driver.name }}{% else %}<span class="text-muted opacity-60 fw-normal">Unassigned</span>{% endif %}
+                                            {% if vehicle.assigned_driver %}<i class="fa-solid fa-user-check text-success me-1"></i> {{ vehicle.assigned_driver.name }}{% else %}<span class="text-muted opacity-60 fw-normal">Unassigned Crew</span>{% endif %}
                                         </td>
                                     </tr>
                                     {% endif %}
                                 {% endfor %}
+
                                 {% for craft in sea_crafts %}
                                     {% if craft.status == 'DEPLOYED' %}
                                     <tr>
@@ -358,28 +352,28 @@
                                         <td><span class="code-tag-blue">{{ craft.plate_number }}</span></td>
                                         <td><span class="status-pill dep">{{ craft.status }}</span></td>
                                         <td>
-                                            {% if craft.deployment_location or craft.deployment_purpose or craft.deployment_time %}
-                                                {% if craft.deployment_location %}
-                                                    <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-primary me-1"></i> {{ craft.deployment_location }}</div>
-                                                {% else %}
-                                                    <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-primary me-1"></i> Coastal Sector Deployment</div>
-                                                {% endif %}
-                                                {% if craft.deployment_purpose %}
-                                                    <div class="small fw-semibold text-dark mt-1"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission: {{ craft.deployment_purpose }}</div>
-                                                {% endif %}
-                                                {% if craft.deployment_time %}
-                                                    <div class="text-muted small font-monospace mt-1"><i class="fa-solid fa-clock me-1"></i> {{ craft.deployment_time }}</div>
-                                                {% endif %}
-                                            {% else %}
-                                                <span class="text-muted opacity-60 fw-normal">En Route / Active</span>
-                                            {% endif %}
+                                            <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-primary me-1"></i> {{ craft.deployment_location|default:"Coastal Sector Deployment" }}</div>
+                                            <div class="text-muted small font-monospace mt-1"><i class="fa-solid fa-clock me-1"></i> {{ craft.deployment_time|date:"M d, Y - H:i"|default:"Active Dispatch" }}</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-info-subtle text-dark border border-info fw-bold p-2 text-wrap" style="max-width: 280px; text-align: left; display: inline-block;">
+                                                <i class="fa-solid fa-bullseye text-info me-1"></i> {{ craft.deployment_purpose|default:"Coastal & Sea Patrol / Reconnaissance" }}
+                                            </span>
                                         </td>
                                         <td class="fw-semibold text-secondary">
-                                            {% if craft.assigned_driver %}<i class="fa-solid fa-anchor text-info me-1"></i> {{ craft.assigned_driver.name }}{% else %}<span class="text-muted opacity-60 fw-normal">Unassigned</span>{% endif %}
+                                            {% if craft.assigned_driver %}<i class="fa-solid fa-anchor text-info me-1"></i> {{ craft.assigned_driver.name }}{% else %}<span class="text-muted opacity-60 fw-normal">Unassigned Skipper</span>{% endif %}
                                         </td>
                                     </tr>
                                     {% endif %}
                                 {% endfor %}
+
+                                {% if land_deployed_count == 0 and sea_deployed_count == 0 %}
+                                <tr>
+                                    <td colspan="7" class="text-center py-4 text-muted fw-semibold">
+                                        <i class="fa-solid fa-circle-info me-1"></i> No active fleet deployments currently registered in field zones.
+                                    </td>
+                                </tr>
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>

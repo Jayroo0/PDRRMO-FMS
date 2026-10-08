@@ -12,9 +12,9 @@
     <link rel="stylesheet" href="{% static 'fleet/css/dashboard_print.css' %}">
     <style>
         :root {
-            --brand-blue: #0f172a;       /* Deep Corporate Navy */
-            --pdrrmo-blue: #0284C7;      /* Maritime Sky Blue Theme */
-            --brand-bg: #f1f5f9;          /* Light Canvas Background */
+            --brand-blue: #0f172a;       
+            --pdrrmo-blue: #0284C7;      
+            --brand-bg: #f1f5f9;          
             --text-main: #0f172a;
         }
 
@@ -39,7 +39,6 @@
             border-top-right-radius: 8px;
         }
 
-        /* Nav Tabs Custom Layout Styling */
         .custom-tabs .nav-link {
             color: rgba(255, 255, 255, 0.75);
             font-weight: 600;
@@ -75,15 +74,11 @@
             padding: 14px 15px;
         }
 
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
+        .pac-container {
+            z-index: 9999 !important;
+            font-family: inherit;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
 
         #alert-container {
@@ -112,23 +107,23 @@
             </a>
             
             <div class="d-flex align-items-center gap-3">
-    <button type="button" class="dashboard-print-trigger" aria-label="Print dashboard">
-        <i class="fa-solid fa-print" aria-hidden="true"></i> Print
-    </button>
-    <span class="text-white-50 small d-none d-md-inline">
-        <i class="fa-solid fa-tower-cell text-success me-1"></i> Connected to Dispatch Server
-    </span>
-    
-    {% if user.is_authenticated %}
-    <span class="text-white small fw-bold bg-dark bg-opacity-25 px-2 py-1 rounded-2 border border-secondary-subtle">
-        <i class="fa-solid fa-user-shield text-info me-1"></i> {{ user.username }}
-    </span>
-    {% endif %}
-    
-    <button type="button" class="btn btn-sm btn-outline-danger px-3 text-uppercase fw-bold" data-bs-toggle="modal" data-bs-target="#logoutModal">
-        <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
-    </button>
-</div>
+                <button type="button" class="dashboard-print-trigger" aria-label="Print dashboard">
+                    <i class="fa-solid fa-print" aria-hidden="true"></i> Print
+                </button>
+                <span class="text-white-50 small d-none d-md-inline">
+                    <i class="fa-solid fa-tower-cell text-success me-1"></i> Connected to Dispatch Server
+                </span>
+                
+                {% if user.is_authenticated %}
+                <span class="text-white small fw-bold bg-dark bg-opacity-25 px-2 py-1 rounded-2 border border-secondary-subtle">
+                    <i class="fa-solid fa-user-shield text-info me-1"></i> {{ user.username }}
+                </span>
+                {% endif %}
+                
+                <button type="button" class="btn btn-sm btn-outline-danger px-3 text-uppercase fw-bold" data-bs-toggle="modal" data-bs-target="#logoutModal">
+                    <i class="fa-solid fa-right-from-bracket me-1"></i> Logout
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -167,6 +162,7 @@
             <div class="card-body p-0 border bg-white rounded-bottom table-responsive">
                 <div class="tab-content" id="seacraftTabContent">
                     
+                    <!-- TAB 1: ALL SEA CRAFTS -->
                     <div class="tab-pane fade show active dashboard-view-list" id="all-crafts" data-view-list="dispatch-all-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="all-crafts-tab">
                         <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
@@ -184,6 +180,15 @@
                                     <td>
                                         <strong>{{ craft.model_name }}</strong>
                                         <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                        {% if craft.status == 'DEPLOYED' %}
+                                            <div class="small mt-1 text-primary"><i class="fa-solid fa-map-pin me-1"></i> {{ craft.deployment_location|default:"Coastal Sector Deployment" }}</div>
+                                            {% if craft.deployment_purpose %}
+                                                <div class="small text-dark fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission: {{ craft.deployment_purpose }}</div>
+                                            {% endif %}
+                                            {% if craft.deployment_time %}
+                                                <div class="small text-muted"><i class="fa-solid fa-clock me-1"></i> {{ craft.deployment_time|date:"M d, Y - H:i" }}</div>
+                                            {% endif %}
+                                        {% endif %}
                                     </td>
                                     <td><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></td>
                                     <td>
@@ -209,7 +214,7 @@
                                             
                                             <select name="driver_id" 
                                                     class="form-select form-select-sm fw-bold border-secondary-subtle" 
-                                                    style="max-width: 200px; cursor: pointer;"
+                                                    style="max-width: 220px; cursor: pointer;"
                                                     onchange="this.form.submit();"
                                                     {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
                                                 <option value="">-- Standby / Unassigned --</option>
@@ -228,18 +233,21 @@
                                     </td>
                                     <td>
                                         {% if craft.status == 'OPERATIONAL' %}
-                                            <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                                <input type="hidden" name="action" value="deploy_vehicle">
-                                                <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fa-solid fa-rocket me-1"></i> DEPLOY</button>
-                                            </form>
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-primary w-100 btn-deploy-trigger"
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#deployVehicleModal"
+                                                    data-vehicle-id="{{ craft.id }}"
+                                                    data-model-name="{{ craft.model_name }}"
+                                                    data-assigned-driver-id="{{ craft.assigned_driver.id|default:'' }}">
+                                                <i class="fa-solid fa-rocket me-1"></i> DEPLOY
+                                            </button>
                                         {% elif craft.status == 'DEPLOYED' %}
                                             <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0">
                                                 {% csrf_token %}
                                                 <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
                                                 <input type="hidden" name="action" value="return_vehicle">
-                                                <button type="submit" class="btn btn-sm btn-warning w-100"><i class="fa-solid fa-arrow-rotate-left me-1"></i> RETURN</button>
+                                                <button type="submit" class="btn btn-sm btn-warning w-100"><i class="fa-solid fa-arrow-rotate-left me-1"></i> RETURN TO BASE</button>
                                             </form>
                                         {% elif craft.status == 'MAINTENANCE' %}
                                             <div class="d-flex gap-1">
@@ -287,6 +295,7 @@
                         </table>
                     </div>
 
+                    <!-- TAB 2: ACTIVE DEPLOYMENTS -->
                     <div class="tab-pane fade dashboard-view-list" id="deployed-crafts" data-view-list="dispatch-deployed-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="deployed-crafts-tab">
                         <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
@@ -305,27 +314,25 @@
                                         <td>
                                             <strong>{{ craft.model_name }}</strong>
                                             <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                            <div class="small mt-1 text-primary"><i class="fa-solid fa-map-pin me-1"></i> {{ craft.deployment_location|default:"Coastal Sector Deployment" }}</div>
+                                            {% if craft.deployment_purpose %}
+                                                <div class="small text-dark fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission: {{ craft.deployment_purpose }}</div>
+                                            {% endif %}
+                                            {% if craft.deployment_time %}
+                                                <div class="small text-muted"><i class="fa-solid fa-clock me-1"></i> {{ craft.deployment_time|date:"M d, Y - H:i" }}</div>
+                                            {% endif %}
                                         </td>
                                         <td><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></td>
                                         <td><span class="badge bg-primary">DEPLOYED</span></td>
                                         <td>
-                                            <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="d-flex gap-2 m-0">
-                                                {% csrf_token %}
-                                                <select class="form-select form-select-sm fw-bold border-secondary-subtle" style="max-width: 200px;" disabled>
-                                                    {% if craft.assigned_driver %}
-                                                        <option>👤 {{ craft.assigned_driver.name }} (In Field)</option>
-                                                    {% else %}
-                                                        <option>-- Standby / Unassigned --</option>
-                                                    {% endif %}
-                                                </select>
-                                            </form>
+                                            <div class="fw-bold text-dark"><i class="fa-solid fa-anchor text-info me-1"></i> {{ craft.assigned_driver.name|default:"Unassigned Operator" }}</div>
                                         </td>
                                         <td>
                                             <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0">
                                                 {% csrf_token %}
                                                 <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
                                                 <input type="hidden" name="action" value="return_vehicle">
-                                                <button type="submit" class="btn btn-sm btn-warning w-100"><i class="fa-solid fa-arrow-rotate-left me-1"></i> RETURN</button>
+                                                <button type="submit" class="btn btn-sm btn-warning w-100"><i class="fa-solid fa-arrow-rotate-left me-1"></i> RETURN TO BASE</button>
                                             </form>
                                         </td>
                                     </tr>
@@ -335,6 +342,7 @@
                         </table>
                     </div>
 
+                    <!-- TAB 3: STANDBY & MAINTENANCE -->
                     <div class="tab-pane fade dashboard-view-list" id="standby-crafts" data-view-list="dispatch-standby-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="standby-crafts-tab">
                         <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
@@ -376,7 +384,7 @@
                                                 
                                                 <select name="driver_id" 
                                                         class="form-select form-select-sm fw-bold border-secondary-subtle" 
-                                                        style="max-width: 200px; cursor: pointer;"
+                                                        style="max-width: 220px; cursor: pointer;"
                                                         onchange="this.form.submit();"
                                                         {% if craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
                                                     <option value="">-- Standby / Unassigned --</option>
@@ -393,12 +401,15 @@
                                         </td>
                                         <td>
                                             {% if craft.status == 'OPERATIONAL' %}
-                                                <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="m-0">
-                                                    {% csrf_token %}
-                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                                    <input type="hidden" name="action" value="deploy_vehicle">
-                                                    <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fa-solid fa-rocket me-1"></i> DEPLOY</button>
-                                                </form>
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-primary w-100 btn-deploy-trigger"
+                                                        data-bs-toggle="modal" 
+                                                        data-bs-target="#deployVehicleModal"
+                                                        data-vehicle-id="{{ craft.id }}"
+                                                        data-model-name="{{ craft.model_name }}"
+                                                        data-assigned-driver-id="{{ craft.assigned_driver.id|default:'' }}">
+                                                    <i class="fa-solid fa-rocket me-1"></i> DEPLOY
+                                                </button>
                                             {% elif craft.status == 'MAINTENANCE' %}
                                                 <div class="d-flex gap-1">
                                                     {% if craft.assigned_driver %}
@@ -450,6 +461,72 @@
 
     </main>
 
+    <!-- MODAL: DEPLOYMENT DETAILS INPUT -->
+    <div class="modal fade" id="deployVehicleModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background-color: #0284C7;">
+                    <h5 class="modal-title fw-bold" id="deployModalHeaderTitle">
+                        <i class="fa-solid fa-rocket text-warning me-2"></i> Deploy Maritime Vessel
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" action="{% url 'dashboard_portal:seacraft_dispatch' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="deploy_vehicle">
+                    <input type="hidden" name="vehicle_id" id="deploy_vehicle_id_input">
+                    <div class="modal-body bg-white text-dark">
+
+                        <!-- OPERATOR SELECTION -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-user-shield text-primary me-1"></i> Assigned Personnel Operator / Skipper <span class="text-danger">*</span></label>
+                            <select id="deploy_driver_select" name="driver_id" class="form-select" required>
+                                <option value="" disabled selected>-- Select Personnel Operator --</option>
+                            </select>
+                            <div class="form-text small text-muted">A designated operator/skipper is required to authorize dispatch.</div>
+                        </div>
+
+                        <!-- LOCATION INPUT -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-map-location-dot text-danger me-1"></i> Deployment Location / Sector <span class="text-danger">*</span></label>
+                            <input type="text" id="deployment_location_input" name="deployment_location" class="form-control" placeholder="Search Palawan barangay, municipality, or coastal grid..." autocomplete="off" required>
+                            <div class="form-text small text-muted"><i class="fa-solid fa-location-crosshairs text-success me-1"></i> Restricted to Palawan Maritime Sectors, Barangays, and Municipalities.</div>
+                        </div>
+
+                        <!-- MISSION PURPOSE SELECT -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Purpose of Deployment / Operational Mission <span class="text-danger">*</span></label>
+                            <select id="deployment_purpose_input" name="deployment_purpose" class="form-select" required>
+                                <option value="" disabled selected>-- Select Mission Objective --</option>
+                                <option value="Disaster Relief &amp; Supplies Delivery">Disaster Relief &amp; Supplies Delivery</option>
+                                <option value="Emergency Search &amp; Rescue (WASAR/USAR)">Emergency Search &amp; Rescue (WASAR/USAR)</option>
+                                <option value="Coastal &amp; Sea Patrol / Reconnaissance">Coastal &amp; Sea Patrol / Reconnaissance</option>
+                                <option value="Medical Evacuation &amp; Emergency Transport">Medical Evacuation &amp; Emergency Transport</option>
+                                <option value="Evacuation &amp; Resident Transport">Evacuation &amp; Resident Transport</option>
+                                <option value="Logistics Support &amp; Equipment Transfer">Logistics Support &amp; Equipment Transfer</option>
+                                <option value="Routine Inspection &amp; Assessment">Routine Inspection &amp; Assessment</option>
+                                <option value="Training &amp; Simulation Exercise">Training &amp; Simulation Exercise</option>
+                                <option value="Other Emergency Mission">Other Emergency Mission</option>
+                            </select>
+                            <div class="form-text small text-muted">Select the official maritime mission objective for this outbound dispatch.</div>
+                        </div>
+
+                        <!-- DEPLOYMENT TIME -->
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-clock text-info me-1"></i> Deployment Date &amp; Time <span class="text-danger">*</span></label>
+                            <input type="datetime-local" id="deploy_time_input" name="deployment_time" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-sm btn-primary fw-bold"><i class="fa-solid fa-check-circle me-1"></i> Confirm Outbound Dispatch</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGOUT MODAL -->
     <div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -458,10 +535,10 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-dark">
-                    Are you sure you want to disconnect from the <strong>Fleet Command Management Environment</strong>? Unsaved status inputs could revert.
+                    Are you sure you want to disconnect from the <strong>Fleet Command Management Environment</strong>?
                 </div>
                 <div class="modal-footer bg-light">
-                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel Session</button>
+                    <button type="button" class="btn btn-secondary fw-bold" data-bs-dismiss="modal">Cancel</button>
                     <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="d-inline">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-danger fw-bold px-3">Confirm Logout</button>
@@ -483,29 +560,172 @@
                         {% endif %}
                         <span class="small fw-medium">{{ message }}</span>
                     </div>
-                    
                     <button type="button" onclick="this.parentElement.remove()" class="btn-close ms-3 small shadow-none" style="font-size: 0.75rem;" aria-label="Close"></button>
                 </div>
             {% endfor %}
         </div>
     {% endif %} 
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- JSON DATA RESERVOIR -->
+    <script id="sea-drivers-json" type="application/json">
+        [
+            {% for driver in drivers %}
+            {
+                "id": "{{ driver.id }}",
+                "name": "{{ driver.name|escapejs }}",
+                "is_assigned": {% if driver.id in assigned_driver_ids %}true{% else %}false{% endif %}
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ]
+    </script>
+    <script id="sea-vehicles-json" type="application/json">
+        [
+            {% for craft in sea_crafts %}
+            {
+                "id": "{{ craft.id }}",
+                "model_name": "{{ craft.model_name|escapejs }}",
+                "status": "{{ craft.status }}",
+                "driver_id": "{{ craft.assigned_driver.id|default:'' }}"
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ]
+    </script>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'fleet/js/dashboard_print.js' %}"></script>
+
     <script>
+        window.gm_authFailure = function() {
+            console.warn("Google Maps API authentication failed. Reverting to native text input.");
+            const locationInput = document.getElementById("deployment_location_input");
+            if (locationInput) {
+                locationInput.removeAttribute("disabled");
+                locationInput.style.pointerEvents = "auto";
+                locationInput.placeholder = "Type Palawan barangay, municipality, or coastal grid...";
+            }
+        };
+
+        let autocompleteBound = false;
+
+        function initPalawanAutocompleteOnModal() {
+            const locationInput = document.getElementById("deployment_location_input");
+            if (!locationInput) return;
+
+            locationInput.removeAttribute("disabled");
+            locationInput.style.pointerEvents = "auto";
+
+            if (typeof google !== "undefined" && google.maps && google.maps.places && !autocompleteBound) {
+                try {
+                    const palawanBounds = new google.maps.LatLngBounds(
+                        new google.maps.LatLng(7.30, 116.85),
+                        new google.maps.LatLng(12.40, 120.40)
+                    );
+
+                    const autocomplete = new google.maps.places.Autocomplete(locationInput, {
+                        types: ["geocode", "establishment"],
+                        componentRestrictions: { country: "ph" },
+                        bounds: palawanBounds,
+                        strictBounds: true,
+                        fields: ["formatted_address", "geometry", "name"]
+                    });
+
+                    autocompleteBound = true;
+
+                    locationInput.addEventListener("keydown", function(e) {
+                        if (e.key === "Enter") {
+                            const pacContainer = document.querySelector(".pac-container");
+                            if (pacContainer && pacContainer.offsetWidth > 0 && pacContainer.getClientRects().length > 0) {
+                                e.preventDefault();
+                            }
+                        }
+                    });
+                } catch (e) {
+                    console.error("Autocomplete init error:", e);
+                    locationInput.removeAttribute("disabled");
+                }
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", function() {
             const alertContainer = document.getElementById("alert-container");
-            
             if (alertContainer) {
                 setTimeout(function() {
                     alertContainer.style.opacity = '0';
                     alertContainer.style.transform = 'translate(50px, 20px)';
-                    
-                    setTimeout(function() {
-                        alertContainer.remove();
-                    }, 500); 
+                    setTimeout(function() { alertContainer.remove(); }, 500); 
                 }, 4000);
+            }
+
+            const seaDrivers = JSON.parse(document.getElementById('sea-drivers-json').textContent || '[]');
+            const seaVehicles = JSON.parse(document.getElementById('sea-vehicles-json').textContent || '[]');
+
+            document.querySelectorAll('.btn-deploy-trigger').forEach(button => {
+                button.addEventListener('click', function() {
+                    const vehicleId = this.getAttribute('data-vehicle-id');
+                    const modelName = this.getAttribute('data-model-name');
+                    const currentDriverId = this.getAttribute('data-assigned-driver-id');
+
+                    document.getElementById('deploy_vehicle_id_input').value = vehicleId;
+                    
+                    const modalHeaderTitle = document.getElementById('deployModalHeaderTitle');
+                    if (modalHeaderTitle) {
+                        modalHeaderTitle.innerHTML = `<i class="fa-solid fa-rocket text-warning me-2"></i> Deploy Vessel &mdash; <span class="text-warning">${modelName}</span>`;
+                    }
+                    
+                    document.getElementById('deployment_location_input').value = '';
+                    document.getElementById('deployment_purpose_input').selectedIndex = 0;
+
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    document.getElementById('deploy_time_input').value = now.toISOString().slice(0, 16);
+
+                    const driverSelect = document.getElementById('deploy_driver_select');
+                    driverSelect.innerHTML = '<option value="" disabled selected>-- Select Personnel Operator / Skipper --</option>';
+
+                    const driverVehicleMap = {};
+                    seaVehicles.forEach(v => {
+                        if (v.driver_id) {
+                            driverVehicleMap[v.driver_id] = v;
+                        }
+                    });
+
+                    let driverFound = false;
+
+                    seaDrivers.forEach(driver => {
+                        const option = document.createElement('option');
+                        option.value = driver.id;
+
+                        const assignedVehicle = driverVehicleMap[driver.id];
+
+                        if (currentDriverId && String(driver.id) === String(currentDriverId)) {
+                            option.textContent = `👤 ${driver.name} [Assigned to this Vessel]`;
+                            option.selected = true;
+                            driverFound = true;
+                        } else if (!assignedVehicle) {
+                            option.textContent = `👤 ${driver.name} [Standby & Available]`;
+                        } else if (assignedVehicle.status === 'MAINTENANCE' || assignedVehicle.status === 'PENDING_DISPOSAL') {
+                            option.textContent = `👤 ${driver.name} [Assigned to ${assignedVehicle.model_name} (Under Maintenance) - Reassignable]`;
+                            option.disabled = false;
+                        } else {
+                            option.textContent = `👤 ${driver.name} [Assigned to ${assignedVehicle.model_name} (${assignedVehicle.status})]`;
+                            option.disabled = true;
+                        }
+
+                        driverSelect.appendChild(option);
+                    });
+
+                    if (!driverFound && !currentDriverId) {
+                        driverSelect.selectedIndex = 0;
+                    }
+                });
+            });
+
+            const deployModal = document.getElementById('deployVehicleModal');
+            if (deployModal) {
+                deployModal.addEventListener('shown.bs.modal', function () {
+                    deployModal.removeAttribute('tabindex'); 
+                    initPalawanAutocompleteOnModal();
+                });
             }
         });
 
@@ -528,6 +748,10 @@
             return true;
         }
     </script>
-
+    <script 
+        src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places" 
+        async 
+        defer>
+    </script>
 </body>
 </html>
