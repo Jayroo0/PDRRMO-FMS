@@ -47,31 +47,40 @@
                     Total Tracked: {{ vehicles.count }}
                 </span>
             </div>
+            <div class="px-4 py-3 border-b flex flex-wrap gap-2" role="group" aria-label="Filter seacraft fleet by status">
+                <button type="button" class="rounded bg-sky-700 text-white px-3 py-2 text-sm font-semibold" data-fleet-filter="ALL">All seacraft</button>
+                <button type="button" class="rounded border border-sky-700 text-sky-800 px-3 py-2 text-sm font-semibold" data-fleet-filter="OPERATIONAL">Operational</button>
+                <button type="button" class="rounded border border-sky-700 text-sky-800 px-3 py-2 text-sm font-semibold" data-fleet-filter="DEPLOYED">Deployed</button>
+                <button type="button" class="rounded border border-sky-700 text-sky-800 px-3 py-2 text-sm font-semibold" data-fleet-filter="MAINTENANCE">Maintenance</button>
+                <button type="button" class="rounded border border-sky-700 text-sky-800 px-3 py-2 text-sm font-semibold" data-fleet-filter="PENDING_DISPOSAL">Pending disposal</button>
+            </div>
 
             <div class="overflow-x-auto dashboard-view-list" data-view-list="marine-work-orders" data-view-type="table" data-view-default="grid">
-                <table class="w-full text-left border-collapse text-sm asset-grid-table asset-grid-table--sea">
+                <table class="w-full text-left border-collapse text-sm asset-grid-table asset-grid-table--sea fleet-maintenance-table">
                     <thead>
                         <tr class="bg-gray-100 text-gray-600 uppercase font-bold tracking-wider text-xs border-b border-gray-200">
-                            <th class="px-6 py-3">Vessel Model Name</th>
-                            <th class="px-6 py-3">Registry Index / Plate</th>
-                            <th class="px-6 py-3">Assigned Operator</th>
-                            <th class="px-6 py-3">Current Condition Status</th>
-                            <th class="px-6 py-3 text-right pr-10">Operational State Controls</th>
+                            <th class="px-3 py-2">Vessel</th>
+                            <th class="px-3 py-2">Operator</th>
+                            <th class="px-3 py-2">Status</th>
+                            <th class="px-3 py-2">Problem</th>
+                            <th class="px-3 py-2">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 text-gray-700">
                         {% for craft in vehicles %}
-                            <tr class="hover:bg-gray-50/70 transition">
-                                <td class="px-6 py-4 font-semibold text-gray-900">{{ craft.model_name }}</td>
-                                <td class="px-6 py-4 font-mono text-gray-500 font-medium">{{ craft.plate_number }}</td>
-                                <td class="px-6 py-4">
+                            <tr class="hover:bg-gray-50/70 transition" data-fleet-status="{{ craft.status }}">
+                                <td class="px-3 py-2 font-semibold text-gray-900">
+                                    {{ craft.model_name }}
+                                    <div class="text-xs font-normal text-gray-500">{{ craft.plate_number }}</div>
+                                </td>
+                                <td class="px-3 py-2">
                                     {% if craft.assigned_driver %}
                                         <span class="text-gray-800 font-medium">{{ craft.assigned_driver.name }}</span>
                                     {% else %}
                                         <span class="text-gray-400 italic font-normal">Standby No Driver</span>
                                     {% endif %}
                                 </td>
-                                <td class="px-6 py-4">
+                                <td class="px-3 py-2">
                                     {% if craft.status == 'MAINTENANCE' %}
                                         <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 uppercase border border-amber-200">
                                             Maintenance Inbound
@@ -94,7 +103,12 @@
                                         </span>
                                     {% endif %}
                                 </td>
-                                <td class="px-6 py-4 text-right">
+                                <td class="px-3 py-2 text-xs text-gray-700">
+                                    {% if craft.status == 'MAINTENANCE' or craft.status == 'PENDING_DISPOSAL' %}
+                                        {{ craft.maintenance_problem|default:"Not recorded" }}
+                                    {% else %}—{% endif %}
+                                </td>
+                                <td class="px-3 py-2 text-right">
                                     <div class="dashboard-row-actions">
                                         
                                         {% if craft.status == 'MAINTENANCE' %}
@@ -138,32 +152,65 @@
                                             </form>
                                         {% endif %}
 
-                                        {% if craft.status != 'PENDING_DISPOSAL' %}
-                                        <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="marine-status-toggle">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                            <input type="hidden" name="action_type" value="STATUS_TOGGLE">
-                                            <input type="hidden" name="status" value="{% if craft.status == 'MAINTENANCE' %}OPERATIONAL{% else %}MAINTENANCE{% endif %}">
-                                            
-                                            <label class="relative inline-flex items-center cursor-pointer select-none">
-                                                <input 
-                                                    type="checkbox" 
-                                                    {% if craft.status == 'MAINTENANCE' %}checked{% endif %}
-                                                    onchange="this.form.submit()" 
-                                                    class="sr-only peer"
-                                                >
-                                                
-                                                <div class="w-11 h-6 bg-emerald-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
-                                                
-                                                <span class="ms-3 text-xs font-bold uppercase tracking-wider text-gray-700 min-w-[100px] text-left">
-                                                    {% if craft.status == 'MAINTENANCE' %}
-                                                        <span class="text-amber-600">Maintenance</span>
-                                                    {% else %}
-                                                        <span class="text-emerald-600">Operational</span>
-                                                    {% endif %}
-                                                </span>
-                                            </label>
-                                        </form>
+                                        {% if craft.status == 'OPERATIONAL' %}
+                                            <details class="mb-2 text-left">
+                                                <summary class="cursor-pointer text-sm font-semibold text-sky-800">Add maintenance log</summary>
+                                                <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="mt-2">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                    <input type="hidden" name="action_type" value="ADD_MAINTENANCE_LOG">
+                                                    <label class="block text-xs font-semibold mb-1" for="service-item-{{ craft.id }}">Service performed</label>
+                                                    <input class="w-full rounded border border-gray-300 px-2 py-1 mb-2" id="service-item-{{ craft.id }}"
+                                                           name="service_item" maxlength="100" placeholder="Oil change, battery replacement..." required>
+                                                    <label class="block text-xs font-semibold mb-1" for="service-details-{{ craft.id }}">Details</label>
+                                                    <textarea class="w-full rounded border border-gray-300 px-2 py-1 mb-2" id="service-details-{{ craft.id }}"
+                                                              name="details" maxlength="2000" rows="2"></textarea>
+                                                    <button type="submit" class="rounded bg-sky-700 text-white px-3 py-1.5 text-xs font-semibold">Save maintenance log</button>
+                                                </form>
+                                            </details>
+                                            <details class="mb-2 text-left">
+                                                <summary class="cursor-pointer text-xs font-semibold text-amber-800">Send to maintenance</summary>
+                                                <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="mt-1">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                    <input type="hidden" name="action_type" value="SET_STATUS">
+                                                    <input type="hidden" name="status" value="MAINTENANCE">
+                                                    <label class="sr-only" for="maintenance-problem-{{ craft.id }}">Seacraft problem</label>
+                                                    <textarea class="w-full rounded border border-gray-300 px-2 py-1 mb-1 text-xs"
+                                                              id="maintenance-problem-{{ craft.id }}" name="maintenance_problem"
+                                                              maxlength="1000" rows="2" placeholder="Describe the problem" required></textarea>
+                                                    <button type="submit" class="rounded border border-amber-400 text-amber-800 px-3 py-1 text-xs font-bold">Save problem</button>
+                                                </form>
+                                            </details>
+                                        {% elif craft.status == 'MAINTENANCE' %}
+                                            <details class="mb-2 text-left">
+                                                <summary class="cursor-pointer text-xs font-semibold text-emerald-800">Mark operational</summary>
+                                                <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="mt-2">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                    <input type="hidden" name="action_type" value="SET_STATUS">
+                                                    <input type="hidden" name="status" value="OPERATIONAL">
+                                                    <div class="text-xs mb-1">Confirm each item before returning to service:</div>
+                                                    <label class="block text-xs mb-1"><input type="checkbox" name="maintenance_checklist" value="repairs_complete" required> Repairs complete</label>
+                                                    <label class="block text-xs mb-1"><input type="checkbox" name="maintenance_checklist" value="safety_systems_checked" required> Safety systems checked</label>
+                                                    <label class="block text-xs mb-1"><input type="checkbox" name="maintenance_checklist" value="fluids_battery_tires_checked" required> Fluids, battery, and tires checked</label>
+                                                    <label class="block text-xs mb-1"><input type="checkbox" name="maintenance_checklist" value="test_run_passed" required> Test run passed</label>
+                                                    <label class="block text-xs mb-1"><input type="checkbox" name="maintenance_checklist" value="no_unresolved_issues" required> No unresolved issues</label>
+                                                    <button type="submit" class="rounded border border-emerald-500 text-emerald-800 px-3 py-1.5 text-xs font-bold mt-1">Confirm and mark operational</button>
+                                                </form>
+                                            </details>
+                                        {% endif %}
+                                        {% if craft.recent_maintenance_logs %}
+                                            <details class="mt-2 text-left">
+                                                <summary class="cursor-pointer text-xs font-semibold">Recent service history</summary>
+                                                {% for log in craft.recent_maintenance_logs %}
+                                                    <div class="border-t mt-2 pt-2 text-xs">
+                                                        <strong>{{ log.service_item }}</strong>
+                                                        {% if log.details %}<div>{{ log.details }}</div>{% endif %}
+                                                        <span class="text-gray-500">{{ log.logged_at|date:"M j, Y g:i A" }}</span>
+                                                    </div>
+                                                {% endfor %}
+                                            </details>
                                         {% endif %}
 
                                     </div>
@@ -214,6 +261,23 @@
 <script src="{% static 'fleet/js/dashboard_views.js' %}"></script>
 <script src="{% static 'fleet/js/dashboard_print.js' %}"></script>
 <script>
+    document.querySelectorAll('[data-fleet-filter]').forEach(button => {
+        button.addEventListener('click', () => {
+            const filter = button.dataset.fleetFilter;
+            document.querySelectorAll('[data-fleet-status]').forEach(row => {
+                row.hidden = filter !== 'ALL' && row.dataset.fleetStatus !== filter;
+            });
+            document.querySelectorAll('[data-fleet-filter]').forEach(tab => {
+                const selected = tab === button;
+                tab.classList.toggle('bg-sky-700', selected);
+                tab.classList.toggle('text-white', selected);
+                tab.classList.toggle('border', !selected);
+                tab.classList.toggle('border-sky-700', !selected);
+                tab.classList.toggle('text-sky-800', !selected);
+            });
+        });
+    });
+
     // Interceptor to prompt operator for validation remarks
     function captureDisposalRemarks(form) {
         const vehicleId = form.querySelector('input[name="vehicle_id"]').value;

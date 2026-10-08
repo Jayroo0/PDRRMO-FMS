@@ -7,7 +7,14 @@ from django.contrib import messages
 from django.contrib.auth.hashers import check_password
 from django.template.response import TemplateResponse
 from django.http import HttpResponseRedirect
-from .models import Vehicle, VehicleType, Driver  # 🟢 Added Driver model here
+from .models import (
+    Vehicle,
+    VehicleType,
+    Driver,
+    VehicleRequest,
+    UnitConditionReport,
+    MaintenanceLog,
+)
 
 # =========================================================================
 # 1. ADMIN HEADERS PANEL STYLING TWEAKS
@@ -36,9 +43,73 @@ class LogEntryAdmin(admin.ModelAdmin):
 # =========================================================================
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'license_number', 'phone_number', 'is_active')
+    list_display = ('id', 'name', 'user', 'license_number', 'phone_number', 'is_active')
     list_filter = ('is_active',)
     search_fields = ('name', 'license_number', 'phone_number')
+
+
+@admin.register(VehicleRequest)
+class VehicleRequestAdmin(admin.ModelAdmin):
+    list_display = ('requester_name', 'purpose', 'vehicle_category', 'assigned_driver', 'assigned_vehicle', 'requested_for', 'status', 'submitted_at')
+    list_filter = ('status', 'purpose', 'vehicle_category', 'submitted_at')
+    search_fields = ('requester_name', 'organization', 'contact_number', 'pickup_location', 'destination')
+    readonly_fields = (
+        'assigned_driver',
+        'assigned_vehicle',
+        'status',
+        'tracking_token',
+        'tracking_expires_at',
+        'current_latitude',
+        'current_longitude',
+        'location_updated_at',
+        'submitted_at',
+    )
+    fields = (
+        'requester_name',
+        'organization',
+        'contact_number',
+        'purpose',
+        'vehicle_category',
+        'requested_for',
+        'pickup_location',
+        'destination',
+        'details',
+        'assigned_driver',
+        'assigned_vehicle',
+        'status',
+        'staff_notes',
+        'tracking_token',
+        'tracking_expires_at',
+        'current_latitude',
+        'current_longitude',
+        'location_updated_at',
+        'submitted_at',
+    )
+
+
+@admin.register(UnitConditionReport)
+class UnitConditionReportAdmin(admin.ModelAdmin):
+    list_display = ('reported_at', 'condition', 'vehicle', 'driver', 'status')
+    list_filter = ('condition', 'status', 'reported_at')
+    search_fields = ('vehicle__model_name', 'vehicle__plate_number', 'driver__name', 'description')
+    readonly_fields = ('vehicle', 'driver', 'vehicle_request', 'condition', 'description', 'reported_at')
+    fields = (
+        'vehicle',
+        'driver',
+        'vehicle_request',
+        'condition',
+        'description',
+        'status',
+        'reported_at',
+    )
+
+
+@admin.register(MaintenanceLog)
+class MaintenanceLogAdmin(admin.ModelAdmin):
+    list_display = ('logged_at', 'vehicle', 'service_item', 'logged_by')
+    list_filter = ('logged_at',)
+    search_fields = ('vehicle__model_name', 'vehicle__plate_number', 'service_item', 'details', 'logged_by__username')
+    readonly_fields = ('vehicle', 'service_item', 'details', 'logged_by', 'logged_at')
 
 
 # =========================================================================
@@ -52,6 +123,8 @@ class VehicleAdmin(admin.ModelAdmin):
         'plate_number', 
         'vehicle_type', 
         'status', 
+        'deployment_purpose',
+        'deployment_destination',
         'driver_phone'  # 🔍 Pulls from the custom display method below
     ]
     list_filter = ('status', 'vehicle_type')

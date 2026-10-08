@@ -159,7 +159,10 @@
                         <button class="nav-link" id="deployed-crafts-tab" data-bs-toggle="tab" data-bs-target="#deployed-crafts" type="button" role="tab" aria-controls="deployed-crafts" aria-selected="false"><i class="fa-solid fa-location-dot me-1"></i> Active Deployments</button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="standby-crafts-tab" data-bs-toggle="tab" data-bs-target="#standby-crafts" type="button" role="tab" aria-controls="standby-crafts" aria-selected="false"><i class="fa-solid fa-warehouse me-1"></i> Standby & Maintenance</button>
+                        <button class="nav-link" id="standby-crafts-tab" data-bs-toggle="tab" data-bs-target="#standby-crafts" type="button" role="tab" aria-controls="standby-crafts" aria-selected="false"><i class="fa-solid fa-warehouse me-1"></i> Standby</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="maintenance-crafts-tab" data-bs-toggle="tab" data-bs-target="#maintenance-crafts" type="button" role="tab" aria-controls="maintenance-crafts" aria-selected="false"><i class="fa-solid fa-screwdriver-wrench me-1"></i> Maintenance</button>
                     </li>
                 </ul>
             </div>
@@ -348,7 +351,7 @@
                             </thead>
                             <tbody>
                                 {% for craft in sea_crafts %}
-                                    {% if craft.status == 'OPERATIONAL' or craft.status == 'MAINTENANCE' or craft.status == 'PENDING_DISPOSAL' %}
+                                    {% if craft.status == 'OPERATIONAL' or craft.status == 'PENDING_DISPOSAL' %}
                                     <tr>
                                         <td>
                                             <strong>{{ craft.model_name }}</strong>
@@ -356,9 +359,7 @@
                                         </td>
                                         <td><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></td>
                                         <td>
-                                            {% if craft.status == 'MAINTENANCE' %}
-                                                <span class="badge bg-danger">MAINTENANCE</span>
-                                            {% elif craft.status == 'PENDING_DISPOSAL' %}
+                                            {% if craft.status == 'PENDING_DISPOSAL' %}
                                                 <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
                                                 <div class="small text-danger mt-1">
                                                     <strong>Disposal reason:</strong>
@@ -439,6 +440,53 @@
                                         </td>
                                     </tr>
                                     {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="tab-pane fade dashboard-view-list" id="maintenance-crafts" data-view-list="dispatch-maintenance-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="maintenance-crafts-tab">
+                        <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
+                            <thead class="table-theme">
+                                <tr>
+                                    <th style="background-color: #0284C7 !important;">Vessel</th>
+                                    <th style="background-color: #0284C7 !important;">Hull ID</th>
+                                    <th style="background-color: #0284C7 !important;">Assigned Operator</th>
+                                    <th style="background-color: #0284C7 !important;">Status</th>
+                                    <th style="background-color: #0284C7 !important;">Problem</th>
+                                    <th style="background-color: #0284C7 !important;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for craft in maintenance_crafts %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ craft.model_name }}</strong>
+                                            <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                        </td>
+                                        <td><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></td>
+                                        <td>{{ craft.assigned_driver.name|default:"Unassigned" }}</td>
+                                        <td><span class="badge bg-danger">MAINTENANCE</span></td>
+                                        <td class="small">{{ craft.maintenance_problem|default:"Not recorded" }}</td>
+                                        <td>
+                                            <details>
+                                                <summary class="small fw-semibold text-success">Mark operational</summary>
+                                                <form action="{% url 'dashboard_portal:seacraft_dispatch' %}" method="post" class="mt-2">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                                    <input type="hidden" name="action" value="complete_maintenance">
+                                                    <label class="d-block small"><input type="checkbox" name="maintenance_checklist" value="repairs_complete" required> Repairs complete</label>
+                                                    <label class="d-block small"><input type="checkbox" name="maintenance_checklist" value="safety_systems_checked" required> Safety systems checked</label>
+                                                    <label class="d-block small"><input type="checkbox" name="maintenance_checklist" value="fluids_battery_tires_checked" required> Fluids, battery, and tires checked</label>
+                                                    <label class="d-block small"><input type="checkbox" name="maintenance_checklist" value="test_run_passed" required> Test run passed</label>
+                                                    <label class="d-block small"><input type="checkbox" name="maintenance_checklist" value="no_unresolved_issues" required> No unresolved issues</label>
+                                                    <button type="submit" class="btn btn-sm btn-outline-success mt-2">Confirm and mark operational</button>
+                                                </form>
+                                            </details>
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr><td colspan="6" class="text-center py-4 text-muted">No seacraft currently in maintenance.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>

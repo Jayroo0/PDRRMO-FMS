@@ -1,0 +1,167 @@
+<section class="card tracker-card shadow-sm mx-auto mb-4" id="driver-live-location"
+         data-update-url="{{ tracking_url }}">
+    <div class="card-body p-4 p-md-5">
+        <h2 class="h3 fw-bold mb-1">Share your live location</h2>
+        <p class="text-secondary mb-4">Live location sharing starts automatically after your browser grants location permission.</p>
+
+        <div class="rounded-3 bg-light border p-3 mb-4">
+            <div class="fw-bold mb-2">{{ vehicle_request.get_purpose_display }}</div>
+            {% if vehicle_request.assigned_vehicle %}
+                <div>{{ vehicle_request.assigned_vehicle.model_name }} · {{ vehicle_request.assigned_vehicle.plate_number }}</div>
+            {% endif %}
+            <dl class="row small mb-0 mt-2">
+                <dt class="col-4 text-secondary">Driver</dt>
+                <dd class="col-8 mb-1">{{ vehicle_request.assigned_driver.name }}</dd>
+                <dt class="col-4 text-secondary">From</dt>
+                <dd class="col-8 mb-1">{{ vehicle_request.pickup_location }}</dd>
+                <dt class="col-4 text-secondary">Destination</dt>
+                <dd class="col-8 mb-0">{{ vehicle_request.destination }}</dd>
+            </dl>
+        </div>
+
+        <div class="alert alert-info small">
+            Allow location access when asked. Phone GPS requires a secure HTTPS connection (except on localhost). Keep this page open during the trip. Sharing ends when Logistics ends the trip or the link expires at {{ vehicle_request.tracking_expires_at|date:"M j, Y g:i A" }}.
+        </div>
+
+        <div id="tracking-status" class="small text-secondary mb-3" role="status" aria-live="polite">
+            Location sharing is off.
+        </div>
+        <div id="location-result" class="border rounded-3 p-3 mb-4{% if vehicle_request.current_latitude == None or vehicle_request.current_longitude == None %} d-none{% endif %}">
+            <a id="current-location-map" class="fw-semibold" href="https://www.google.com/maps?q={{ vehicle_request.current_latitude }},{{ vehicle_request.current_longitude }}" target="_blank" rel="noopener noreferrer">
+                View my latest location on map
+            </a>
+            <div id="current-location-coordinates" class="small text-secondary mt-1">
+                Phone GPS: {{ vehicle_request.current_latitude }}, {{ vehicle_request.current_longitude }}
+            </div>
+            {% if vehicle_request.location_updated_at %}
+                <div class="small text-secondary">Last shared {{ vehicle_request.location_updated_at|date:"M j, Y g:i:s A" }}</div>
+            {% endif %}
+        </div>
+
+        <form class="d-none" aria-hidden="true">{% csrf_token %}</form>
+        <div class="tracker-actions d-flex flex-column flex-sm-row gap-2">
+            <button class="btn btn-primary flex-grow-1" id="start-sharing" type="button">
+                Retry live sharing
+            </button>
+            <button class="btn btn-outline-secondary" id="stop-sharing" type="button" disabled>
+                Pause sharing
+            </button>
+        </div>
+        <p class="small text-muted mt-4 mb-0">Only Logistics and the public fleet map can see the shared trip location. Pause sharing any time; the last location stays visible until the trip ends or this link expires. Phone browsers may pause GPS when this page is closed or sent to the background.</p>
+    </div>
+</section>
+<script>
+(() => {
+    const panel = document.getElementById('driver-live-location');
+    const status = document.getElementById('tracking-status');
+    const start = document.getElementById('start-sharing');
+    const stop = document.getElementById('stop-sharing');
+    const result = document.getElementById('location-result');
+    const mapLink = document.getElementById('current-location-map');
+    const coordinates = document.getElementById('current-location-coordinates');
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    const updateUrl = panel.dataset.updateUrl;
+    let watchId = null;
+    let uploadTimer = null;
+    let latestPosition = null;
+    let uploadInProgress = false;
+    let sharingActive = false;
+
+    function stopWatching(message) {
+        sharingActive = false;
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (uploadTimer !== null) window.clearInterval(uploadTimer);
+        watchId = null;
+        uploadTimer = null;
+        latestPosition = null;
+        start.disabled = false;
+        stop.disabled = true;
+        status.textContent = message;
+    }
+
+    function showPosition(position, updatedAt) {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
+        const point = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+        mapLink.href = `https://www.google.com/maps?q=${encodeURIComponent(latitude)},${encodeURIComponent(longitude)}`;
+        coordinates.textContent = `Phone GPS: ${point}${position.coords.accuracy ? ` · accuracy ±${Math.round(position.coords.accuracy)} m` : ''}`;
+        result.classList.remove('d-none');
+        status.textContent = `Live location shared at ${new Date(updatedAt).toLocaleTimeString()}.`;
+    }
+
+    async function uploadLatestPosition() {
+        if (!sharingActive || uploadInProgress || !latestPosition) return;
+        const position = latestPosition;
+        uploadInProgress = true;
+
+        try {
+            const data = new URLSearchParams({
+                csrfmiddlewaretoken: csrfToken,
+                latitude: position.coords.latitude,
+                longitude: position.coords.longitude
+            });
+            const response = await fetch(updateUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrfToken
+                },
+                body: data
+            });
+            if (response.status === 404 || response.status === 410) {
+                stopWatching('This trip has ended or the private tracking link has expired.');
+                return;
+            }
+            if (!response.ok) {
+                throw new Error(`The server rejected the location update (HTTP ${response.status}). Check your connection and retry.`);
+            }
+            const payload = await response.json();
+            if (latestPosition === position) latestPosition = null;
+            showPosition(position, payload.updated_at);
+        } catch (error) {
+            status.textContent = `Could not share location: ${error.message} Retrying automatically...`;
+        } finally {
+            uploadInProgress = false;
+        }
+    }
+
+    function startSharing() {
+        if (sharingActive) return;
+        if (window.isSecureContext === false) {
+            status.textContent = 'Phone location requires a secure HTTPS connection. Open this page using the HTTPS site address, not a local network HTTP address.';
+            return;
+        }
+        if (!navigator.geolocation) {
+            status.textContent = 'Phone location is unavailable. Open this page over HTTPS in a browser that supports location services.';
+            return;
+        }
+        sharingActive = true;
+        start.disabled = true;
+        stop.disabled = false;
+        status.textContent = 'Requesting permission to use your phone’s GPS. Allow location access to start live sharing...';
+        watchId = navigator.geolocation.watchPosition(
+            position => {
+                latestPosition = position;
+                uploadLatestPosition();
+            },
+            error => {
+                if (error.code === error.PERMISSION_DENIED) {
+                    stopWatching('Location permission was denied. Allow location access for this site in your browser settings, then retry.');
+                    return;
+                }
+                status.textContent = error.code === error.TIMEOUT
+                    ? 'Phone GPS is taking longer than expected. Keeping location watch active and retrying...'
+                    : `Phone GPS is temporarily unavailable: ${error.message} Keeping location watch active...`;
+            },
+            { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 }
+        );
+        uploadTimer = window.setInterval(uploadLatestPosition, 5000);
+    }
+
+    start.addEventListener('click', startSharing);
+    stop.addEventListener('click', () => {
+        stopWatching('Location sharing paused. Your last shared location may remain public until trip end or link expiry.');
+    });
+    startSharing();
+})();
+</script>

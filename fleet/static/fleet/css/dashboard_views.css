@@ -181,6 +181,82 @@
     content: none !important;
 }
 
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table,
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table {
+    min-width: 760px;
+    table-layout: fixed;
+}
+
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table th,
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table td,
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table th,
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table td {
+    padding: .5rem .65rem !important;
+    vertical-align: top;
+}
+
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table th:nth-child(1) {
+    width: 22%;
+}
+
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table th:nth-child(2) {
+    width: 15%;
+}
+
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table th:nth-child(3) {
+    width: 38%;
+}
+
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table th:nth-child(4) {
+    width: 25%;
+}
+
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table th:nth-child(1) {
+    width: 22%;
+}
+
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table th:nth-child(2) {
+    width: 15%;
+}
+
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table th:nth-child(3) {
+    width: 13%;
+}
+
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table th:nth-child(4) {
+    width: 25%;
+}
+
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table th:nth-child(5) {
+    width: 25%;
+}
+
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table tbody tr,
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table tbody tr {
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table .dashboard-row-actions,
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table .dashboard-row-actions {
+    gap: .35rem;
+    align-items: flex-start;
+}
+
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table details,
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table details {
+    width: 100%;
+}
+
+.dashboard-view-list[data-view-list="land-work-orders"][data-view-mode="list"] .fleet-maintenance-table summary,
+.dashboard-view-list[data-view-list="marine-work-orders"][data-view-mode="list"] .fleet-maintenance-table summary {
+    cursor: pointer;
+    font-size: .8rem;
+}
+
+.fleet-maintenance-table td {
+    overflow-wrap: anywhere;
+}
+
 .dashboard-view-list[data-view-type="table"][data-view-mode="tile"],
 .dashboard-view-list[data-view-type="table"][data-view-mode="grid"] {
     overflow: visible !important;

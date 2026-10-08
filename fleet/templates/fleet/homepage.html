@@ -229,6 +229,9 @@
             </div>
             
             <div class="d-flex align-items-center gap-2">
+                <a href="{% url 'dashboard_portal:landing' %}" class="btn nav-link-btn px-3">
+                    <i class="fa-solid fa-arrow-left me-2" aria-hidden="true"></i>RETURN
+                </a>
                 <button type="button" class="dashboard-print-trigger" title="Print dashboard">
                     <i class="fa-solid fa-print" aria-hidden="true"></i> Print
                 </button>
@@ -243,16 +246,115 @@
                             <i class="fa-solid fa-right-from-bracket me-1"></i> Logout ({{ user.username }})
                         </button>
                     </form>
-                {% else %}
-                    <a href="{% url 'dashboard_portal:login' %}" class="btn nav-link-btn px-4" style="border-color: #38bdf8; color: #38bdf8;">
-                        <i class="fa-solid fa-right-to-bracket me-2"></i> SYSTEM LOGIN
-                    </a>
                 {% endif %}
             </div>
         </div>
     </header>
 
     <main class="container-fluid py-4 px-4">
+        <div class="row mb-4">
+            <div class="col-12 d-flex justify-content-end">
+                <form method="get" action="" class="d-flex gap-2 align-items-center flex-wrap" style="max-width: 520px; width: 100%;">
+                    <div class="input-group shadow-sm">
+                        <span class="input-group-text bg-white border-end-0"><i class="fa-solid fa-magnifying-glass text-secondary"></i></span>
+                        <input type="text" name="q" class="form-control border-start-0" placeholder="Search vehicle, plate, type, or operator" value="{{ query }}" aria-label="Search fleet">
+                        <button type="submit" class="btn btn-primary px-3">Search</button>
+                        {% if query %}
+                            <a href="{% url 'dashboard_portal:homepage' %}" class="btn btn-outline-secondary">Clear</a>
+                        {% endif %}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {% if query and not search_results %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="alert alert-warning mb-0 shadow-sm">
+                    <i class="fa-solid fa-magnifying-glass me-2"></i>No active fleet matches found for "{{ query }}". Try a vehicle name, plate number, type, or operator name.
+                </div>
+            </div>
+        </div>
+        {% elif query and search_results %}
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="panel-container" style="border-left: 4px solid #0f172a;">
+                    <div class="panel-heading-blue d-flex justify-content-between align-items-center">
+                        <span><i class="fa-solid fa-magnifying-glass me-2 text-primary"></i>SEARCH RESULTS FOR "{{ query|upper }}"</span>
+                        <span class="badge bg-primary-subtle text-primary font-monospace border fw-bold" style="font-size: 0.8rem; padding: 5px 10px;">{{ search_results|length }} Match{{ search_results|length|pluralize }}</span>
+                    </div>
+                    <div class="table-responsive dashboard-view-list" style="max-height: 320px; overflow-y: auto;">
+                        <table class="table table-pdrrmo table-hover align-middle m-0">
+                            <thead>
+                                <tr>
+                                    <th>Asset</th>
+                                    <th>Identifier</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Assigned Operator</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for vehicle in search_results %}
+                                <tr>
+                                    <td class="fw-bold text-primary">{{ vehicle.model_name }}</td>
+                                    <td><span class="code-tag-blue">{{ vehicle.plate_number }}</span></td>
+                                    <td>{{ vehicle.vehicle_type.name }}</td>
+                                    <td><span class="status-pill {% if vehicle.status == 'OPERATIONAL' %}op{% elif vehicle.status == 'DEPLOYED' %}dep{% else %}maint{% endif %}">{{ vehicle.status }}</span></td>
+                                    <td class="text-muted">
+                                        {% if vehicle.assigned_driver %}
+                                            {{ vehicle.assigned_driver.name }}
+                                        {% else %}
+                                            <span class="text-muted fw-normal opacity-60">Unassigned</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if active_trip_requests %}
+        <section class="panel-container mb-4" id="active-trip-locations" data-locations-url="{{ trip_locations_url }}">
+            <div class="panel-heading-blue d-flex justify-content-between align-items-center">
+                <span><i class="fa-solid fa-location-dot me-2 text-danger" aria-hidden="true"></i>ACTIVE APPROVED TRIPS</span>
+                <span class="small text-muted">Driver phone location updates · refreshes automatically</span>
+            </div>
+            <div class="row g-3 p-3">
+                {% for trip in active_trip_requests %}
+                    <div class="col-lg-6" data-trip-card="{{ trip.id }}">
+                        <article class="card h-100 border">
+                            <div class="card-body">
+                                <h3 class="h6 fw-bold mb-2" data-trip-purpose>{{ trip.get_purpose_display }}</h3>
+                                <p class="small text-muted mb-2">
+                                    <strong>Route:</strong> {{ trip.pickup_location }} &rarr; {{ trip.destination }}
+                                </p>
+                                <div class="small" data-trip-location>
+                                    {% if trip.location_updated_at %}
+                                        <a class="fw-semibold" href="https://www.google.com/maps?q={{ trip.current_latitude }},{{ trip.current_longitude }}" target="_blank" rel="noopener noreferrer">
+                                            <i class="fa-solid fa-map-location-dot me-1" aria-hidden="true"></i>View latest location on map
+                                        </a>
+                                        <span class="text-muted d-block" data-trip-updated>
+                                            Updated {{ trip.location_updated_at|date:"M j, Y g:i:s A" }}
+                                        </span>
+                                    {% else %}
+                                        <span class="text-muted" data-trip-waiting>Waiting for driver location sharing.</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </article>
+                    </div>
+                {% endfor %}
+            </div>
+            <div class="px-3 pb-3 small text-muted">
+                Live trip locations are shared by the assigned driver and remain public until Logistics completes the trip or the tracking window expires.
+            </div>
+        </section>
+        {% endif %}
         
         <div class="row g-3 mb-4">
             
@@ -334,6 +436,9 @@
                                     <th>Identifier (Plate/Hull)</th>
                                     <th>Current Status</th>
                                     <th>Assigned Crew / Driver</th>
+                                    <th>Deployment Purpose</th>
+                                    <th>Destination</th>
+                                    <th>Live Location</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -346,6 +451,30 @@
                                         <td><span class="status-pill dep">{{ vehicle.status }}</span></td>
                                         <td class="fw-semibold text-secondary">
                                             {% if vehicle.assigned_driver %}<i class="fa-solid fa-user-check text-success me-1"></i> {{ vehicle.assigned_driver.name }}{% else %}<span class="text-muted opacity-60 fw-normal">Unassigned</span>{% endif %}
+                                        </td>
+                                        <td data-deployment-purpose>
+                                            {% if vehicle.active_trip %}{{ vehicle.active_trip.get_purpose_display }}
+                                            {% elif vehicle.deployment_purpose %}{{ vehicle.get_deployment_purpose_display }}
+                                            {% else %}<span class="text-muted">—</span>{% endif %}
+                                        </td>
+                                        <td data-deployment-destination>
+                                            {% if vehicle.active_trip %}{{ vehicle.active_trip.destination }}
+                                            {% elif vehicle.deployment_destination %}{{ vehicle.deployment_destination }}
+                                            {% else %}<span class="text-muted">—</span>{% endif %}
+                                        </td>
+                                        <td class="small" data-deployment-location{% if vehicle.active_trip %} data-deployment-trip="{{ vehicle.active_trip.id }}"{% endif %}>
+                                            {% if vehicle.active_trip and vehicle.active_trip.current_latitude != None and vehicle.active_trip.current_longitude != None %}
+                                                <a class="fw-semibold" href="https://www.google.com/maps?q={{ vehicle.active_trip.current_latitude }},{{ vehicle.active_trip.current_longitude }}" target="_blank" rel="noopener noreferrer">
+                                                    <i class="fa-solid fa-map-location-dot me-1" aria-hidden="true"></i>View latest location on map
+                                                </a>
+                                                {% if vehicle.active_trip.location_updated_at %}
+                                                    <span class="text-muted d-block" data-deployment-updated>Updated {{ vehicle.active_trip.location_updated_at|date:"M j, Y g:i:s A" }}</span>
+                                                {% endif %}
+                                            {% elif vehicle.active_trip %}
+                                                <span class="text-muted">Waiting for driver location sharing.</span>
+                                            {% else %}
+                                                <span class="text-muted">No active approved trip.</span>
+                                            {% endif %}
                                         </td>
                                     </tr>
                                     {% endif %}
@@ -360,6 +489,9 @@
                                         <td class="fw-semibold text-secondary">
                                             {% if craft.assigned_driver %}<i class="fa-solid fa-anchor text-info me-1"></i> {{ craft.assigned_driver.name }}{% else %}<span class="text-muted opacity-60 fw-normal">Unassigned</span>{% endif %}
                                         </td>
+                                        <td>{% if craft.deployment_purpose %}{{ craft.get_deployment_purpose_display }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                                        <td>{% if craft.deployment_destination %}{{ craft.deployment_destination }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                                        <td><span class="text-muted">Phone location not shared.</span></td>
                                     </tr>
                                     {% endif %}
                                 {% endfor %}
@@ -531,6 +663,103 @@
     }
 
     setInterval(checkForStatusUpdates, 5000);
+    </script>
+    <script>
+    (() => {
+        const section = document.getElementById('active-trip-locations');
+        if (!section) return;
+
+        async function refreshTripLocations() {
+            try {
+                const response = await fetch(section.dataset.locationsUrl, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                if (!response.ok) throw new Error('Could not refresh trip locations.');
+                const payload = await response.json();
+                const activeTrips = new Map(payload.trips.map(trip => [String(trip.id), trip]));
+
+                section.querySelectorAll('[data-trip-card]').forEach(card => {
+                    const trip = activeTrips.get(card.dataset.tripCard);
+                    if (!trip) {
+                        card.remove();
+                        return;
+                    }
+
+                    const location = card.querySelector('[data-trip-location]');
+                    location.replaceChildren();
+                    if (trip.latitude === null || trip.longitude === null) {
+                        const waiting = document.createElement('span');
+                        waiting.className = 'text-muted';
+                        waiting.textContent = 'Waiting for driver location sharing.';
+                        location.append(waiting);
+                        return;
+                    }
+
+                    const mapLink = document.createElement('a');
+                    mapLink.className = 'fw-semibold';
+                    mapLink.href = `https://www.google.com/maps?q=${encodeURIComponent(trip.latitude)},${encodeURIComponent(trip.longitude)}`;
+                    mapLink.target = '_blank';
+                    mapLink.rel = 'noopener noreferrer';
+                    const mapIcon = document.createElement('i');
+                    mapIcon.className = 'fa-solid fa-map-location-dot me-1';
+                    mapIcon.setAttribute('aria-hidden', 'true');
+                    mapLink.append(mapIcon, document.createTextNode('View latest location on map'));
+                    location.append(mapLink);
+
+                    if (trip.updated_at) {
+                        const updated = document.createElement('span');
+                        updated.className = 'text-muted d-block';
+                        updated.textContent = `Updated ${new Date(trip.updated_at).toLocaleString()}`;
+                        location.append(updated);
+                    }
+                });
+
+                document.querySelectorAll('[data-deployment-trip]').forEach(location => {
+                    const trip = activeTrips.get(location.dataset.deploymentTrip);
+                    location.replaceChildren();
+                    if (!trip) {
+                        const unavailable = document.createElement('span');
+                        unavailable.className = 'text-muted';
+                        unavailable.textContent = 'Location sharing ended.';
+                        location.append(unavailable);
+                        return;
+                    }
+                    if (trip.latitude === null || trip.longitude === null) {
+                        const waiting = document.createElement('span');
+                        waiting.className = 'text-muted';
+                        waiting.textContent = 'Waiting for driver location sharing.';
+                        location.append(waiting);
+                        return;
+                    }
+
+                    const mapLink = document.createElement('a');
+                    mapLink.className = 'fw-semibold';
+                    mapLink.href = `https://www.google.com/maps?q=${encodeURIComponent(trip.latitude)},${encodeURIComponent(trip.longitude)}`;
+                    mapLink.target = '_blank';
+                    mapLink.rel = 'noopener noreferrer';
+                    const mapIcon = document.createElement('i');
+                    mapIcon.className = 'fa-solid fa-map-location-dot me-1';
+                    mapIcon.setAttribute('aria-hidden', 'true');
+                    mapLink.append(mapIcon, document.createTextNode('View latest location on map'));
+                    location.append(mapLink);
+
+                    if (trip.updated_at) {
+                        const updated = document.createElement('span');
+                        updated.className = 'text-muted d-block';
+                        updated.textContent = `Updated ${new Date(trip.updated_at).toLocaleString()}`;
+                        location.append(updated);
+                    }
+                });
+
+                if (!section.querySelector('[data-trip-card]')) section.remove();
+            } catch (error) {
+                console.error('Trip location refresh failed:', error);
+            }
+        }
+
+        refreshTripLocations();
+        setInterval(refreshTripLocations, 15000);
+    })();
     </script>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
