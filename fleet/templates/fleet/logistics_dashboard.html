@@ -16,7 +16,6 @@
         .btn-orange:hover { background-color: #C2410C; color: white; }
         .btn-teal { background-color: #0EA5E9; color: white; font-weight: bold; }
         .btn-teal:hover { background-color: #0284C7; color: white; }
-        .text-orange { color: #EA580C !important; }
         .panel-header-custom { background-color: #1A365D; color: white; padding: 12px 20px; font-weight: bold; border-radius: 4px 4px 0 0; }
         .asset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .75rem; }
         .asset-grid-empty { grid-column: 1 / -1; }
@@ -43,7 +42,6 @@
             background-color: #0284C7 !important;
         }
 
-        /* Ensure Google Places Autocomplete dropdown renders above Bootstrap Modals */
         .pac-container {
             z-index: 9999 !important;
             font-family: inherit;
@@ -111,9 +109,7 @@
 
         <h3 class="fw-bold mb-4" style="color: #1A365D;">Personnel Deployment & Fleet Control Registry</h3>
 
-        <!-- ========================================================================= -->
         <!-- LAND OPERATIONS DIVISION -->
-        <!-- ========================================================================= -->
         <div class="card shadow-sm border-0 mb-5">
             <div class="panel-header-custom d-flex justify-content-between align-items-center">
                 <span><i class="fa-solid fa-truck-monster me-2 text-warning"></i>LAND OPERATIONS DIVISION</span>
@@ -201,6 +197,9 @@
                                     
                                     <div class="bg-white border rounded p-2 mb-3 small">
                                         <div class="mb-1 text-primary fw-bold"><i class="fa-solid fa-map-pin me-1"></i> {{ vehicle.deployment_location|default:"Field Deployment Zone" }}</div>
+                                        {% if vehicle.deployment_purpose %}
+                                        <div class="mb-1 text-dark fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission: {{ vehicle.deployment_purpose }}</div>
+                                        {% endif %}
                                         <div class="text-muted"><i class="fa-solid fa-clock me-1"></i> {{ vehicle.deployment_time|date:"M d, Y - H:i"|default:"Recently Dispatched" }}</div>
                                         <div class="mt-1 text-dark fw-semibold"><i class="fa-solid fa-user me-1"></i> Operator: {{ vehicle.assigned_driver.name|default:"Unassigned Crew" }}</div>
                                     </div>
@@ -284,9 +283,7 @@
             </div>
         </div>
 
-        <!-- ========================================================================= -->
         <!-- MARITIME OPERATIONS DIVISION (SEACRAFTS) -->
-        <!-- ========================================================================= -->
         <div class="card shadow-sm border-0 mb-5">
             <div class="panel-header-custom d-flex justify-content-between align-items-center" style="background-color: #0284C7;">
                 <span><i class="fa-solid fa-ship me-2 text-warning"></i>MARITIME DIVISION (SEACRAFTS)</span>
@@ -374,6 +371,9 @@
                                     
                                     <div class="bg-white border rounded p-2 mb-3 small">
                                         <div class="mb-1 text-primary fw-bold"><i class="fa-solid fa-map-pin me-1"></i> {{ craft.deployment_location|default:"Coastal Sector Deployment" }}</div>
+                                        {% if craft.deployment_purpose %}
+                                        <div class="mb-1 text-dark fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission: {{ craft.deployment_purpose }}</div>
+                                        {% endif %}
                                         <div class="text-muted"><i class="fa-solid fa-clock me-1"></i> {{ craft.deployment_time|date:"M d, Y - H:i"|default:"Recently Dispatched" }}</div>
                                         <div class="mt-1 text-dark fw-semibold"><i class="fa-solid fa-anchor me-1"></i> Operator: {{ craft.assigned_driver.name|default:"Unassigned Skipper" }}</div>
                                     </div>
@@ -458,9 +458,7 @@
         </div>
     </div>
 
-    <!-- ========================================================================= -->
-    <!-- MENU DRAWER: PERSONNEL OPERATOR ASSIGNMENT (OFFCANVAS) -->
-    <!-- ========================================================================= -->
+    <!-- MENU DRAWER: PERSONNEL OPERATOR ASSIGNMENT -->
     <div class="offcanvas offcanvas-end" tabindex="-1" id="operatorAssignmentDrawer" aria-labelledby="operatorDrawerLabel" style="min-width: 420px;">
         <div class="offcanvas-header text-white" style="background-color: #1A365D;">
             <h5 class="offcanvas-title fw-bold" id="operatorDrawerLabel">
@@ -475,7 +473,6 @@
             </div>
 
             <div class="accordion" id="drawerAccordion">
-                <!-- LAND ASSETS OPERATOR ASSIGNMENT -->
                 <div class="accordion-item mb-2 border rounded">
                     <h2 class="accordion-header" id="headingLand">
                         <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLand" aria-expanded="true">
@@ -516,7 +513,6 @@
                     </div>
                 </div>
 
-                <!-- SEACRAFT ASSETS OPERATOR ASSIGNMENT -->
                 <div class="accordion-item border rounded">
                     <h2 class="accordion-header" id="headingSea">
                         <button class="accordion-button collapsed fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSea" aria-expanded="false">
@@ -560,14 +556,14 @@
         </div>
     </div>
 
-    <!-- ========================================================================= -->
-    <!-- MODAL: DEPLOYMENT DETAILS INPUT WITH SAFE PALAWAN AUTOCOMPLETE -->
-    <!-- ========================================================================= -->
+    <!-- MODAL: DEPLOYMENT DETAILS INPUT WITH SELECTED FLEET IN HEADER & PURPOSE SELECTION -->
     <div class="modal fade" id="deployVehicleModal" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header text-white" style="background-color: #1A365D;">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-rocket text-warning me-2"></i> Deploy Fleet Unit</h5>
+                    <h5 class="modal-title fw-bold" id="deployModalHeaderTitle">
+                        <i class="fa-solid fa-rocket text-warning me-2"></i> Deploy Fleet Unit
+                    </h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <form method="POST" action="{% url 'dashboard_portal:logistics_dashboard' %}">
@@ -575,12 +571,8 @@
                     <input type="hidden" name="action" value="deploy_vehicle">
                     <input type="hidden" name="vehicle_id" id="deploy_vehicle_id_input">
                     <div class="modal-body bg-white">
-                        <div class="mb-3">
-                            <label class="form-label text-muted small fw-bold uppercase">Selected Fleet Asset</label>
-                            <div id="deploy-asset-name-display" class="fs-6 fw-bold text-primary p-2 bg-light border rounded"></div>
-                        </div>
 
-                        <!-- DRIVER ASSIGNMENT SELECTOR DURING DEPLOYMENT -->
+                        <!-- DRIVER ASSIGNMENT SELECTOR -->
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Assigned Personnel Operator</label>
                             <select id="deploy_driver_select" name="driver_id" class="form-select" required>
@@ -589,15 +581,33 @@
                             <div class="form-text small text-muted">Operators attached to maintenance units are re-assignable to active deployments.</div>
                         </div>
 
-                        <!-- LOCATION INPUT (STRICTLY PALAWAN BARANGAYS AND MUNICIPALITIES) -->
+                        <!-- LOCATION INPUT -->
                         <div class="mb-3">
                             <label class="form-label fw-semibold"><i class="fa-solid fa-map-location-dot text-danger me-1"></i> Deployment Location / Destination</label>
                             <input type="text" id="deployment_location_input" name="deployment_location" class="form-control" placeholder="Search Palawan barangay, municipality, or landmark..." autocomplete="off" required>
                             <div class="form-text small text-muted"><i class="fa-solid fa-location-crosshairs text-success me-1"></i> Restricted strictly to Palawan Barangays and Municipalities.</div>
                         </div>
 
+                        <!-- PURPOSE OF DEPLOYMENT SELECT SELECTION -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Deployment Date & Time</label>
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Purpose of Deployment / Operational Mission</label>
+                            <select id="deployment_purpose_input" name="deployment_purpose" class="form-select" required>
+                                <option value="" disabled selected>-- Select Deployment Purpose / Mission --</option>
+                                <option value="Disaster Relief &amp; Supplies Delivery">Disaster Relief &amp; Supplies Delivery</option>
+                                <option value="Emergency Search &amp; Rescue (WASAR/USAR)">Emergency Search &amp; Rescue (WASAR/USAR)</option>
+                                <option value="Medical Evacuation &amp; Emergency Transport">Medical Evacuation &amp; Emergency Transport</option>
+                                <option value="Coastal &amp; Sea Patrol / Reconnaissance">Coastal &amp; Sea Patrol / Reconnaissance</option>
+                                <option value="Evacuation &amp; Resident Transport">Evacuation &amp; Resident Transport</option>
+                                <option value="Logistics Support &amp; Equipment Transfer">Logistics Support &amp; Equipment Transfer</option>
+                                <option value="Routine Inspection &amp; Assessment">Routine Inspection &amp; Assessment</option>
+                                <option value="Training &amp; Simulation Exercise">Training &amp; Simulation Exercise</option>
+                                <option value="Other Emergency Mission">Other Emergency Mission</option>
+                            </select>
+                            <div class="form-text small text-muted">Select the official mission objective for this outbound dispatch.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Deployment Date &amp; Time</label>
                             <input type="datetime-local" id="deploy_time_input" name="deployment_time" class="form-control" required>
                         </div>
                     </div>
@@ -610,9 +620,7 @@
         </div>
     </div>
 
-    <!-- ========================================================================= -->
     <!-- MODAL: ONBOARD NEW VEHICLE -->
-    <!-- ========================================================================= -->
     <div class="modal fade" id="addVehicleModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
@@ -651,7 +659,7 @@
         </div>
     </div>
 
-    <!-- HIDDEN JSON DATA RESERVOIR FOR DYNAMIC JAVASCRIPT MODAL POPULATION -->
+    <!-- HIDDEN JSON DATA RESERVOIR -->
     <script id="land-drivers-json" type="application/json">
         [
             {% for driver in land_drivers %}
@@ -703,7 +711,6 @@
     <script src="{% static 'fleet/js/dashboard_views.js' %}"></script>
     <script src="{% static 'fleet/js/dashboard_print.js' %}"></script>
 
-    <!-- GOOGLE MAPS AUTH FAILURE OVERRIDE -->
     <script>
         window.gm_authFailure = function() {
             console.warn("Google Maps API authentication failed. Reverting to native text input.");
@@ -727,8 +734,8 @@
             if (typeof google !== "undefined" && google.maps && google.maps.places && !autocompleteBound) {
                 try {
                     const palawanBounds = new google.maps.LatLngBounds(
-                        new google.maps.LatLng(7.30, 116.85), // SW Palawan
-                        new google.maps.LatLng(12.40, 120.40)  // NE Palawan
+                        new google.maps.LatLng(7.30, 116.85),
+                        new google.maps.LatLng(12.40, 120.40)
                     );
 
                     const autocomplete = new google.maps.places.Autocomplete(locationInput, {
@@ -757,7 +764,6 @@
         }
     </script>
 
-    <!-- ASYNCHRONOUS GOOGLE MAPS API SCRIPT -->
     <script 
         src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places" 
         async 
@@ -766,9 +772,6 @@
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            // =========================================================================
-            // 1. RESTORE ACTIVE TABS & SCROLL POSITION ACROSS PAGE RELOADS
-            // =========================================================================
             const savedScroll = localStorage.getItem('logistics_dashboard_scroll');
             if (savedScroll !== null) {
                 window.scrollTo(0, parseInt(savedScroll, 10));
@@ -801,10 +804,6 @@
                 });
             });
 
-
-            // =========================================================================
-            // 2. GENERAL DASHBOARD INITIALIZATION & RE-ASSIGNMENT LOGIC
-            // =========================================================================
             const alertContainer = document.getElementById("floating-alert-container");
             if (alertContainer) {
                 setTimeout(() => {
@@ -815,13 +814,11 @@
                 }, 3000);
             }
 
-            // Load datasets
             const landDrivers = JSON.parse(document.getElementById('land-drivers-json').textContent || '[]');
             const seaDrivers = JSON.parse(document.getElementById('sea-drivers-json').textContent || '[]');
             const landVehicles = JSON.parse(document.getElementById('land-vehicles-json').textContent || '[]');
             const seaVehicles = JSON.parse(document.getElementById('sea-vehicles-json').textContent || '[]');
 
-            // Deployment Modal Trigger Setup with Smart Driver Re-assignment Logic
             document.querySelectorAll('.btn-deploy-trigger').forEach(button => {
                 button.addEventListener('click', function() {
                     const vehicleId = this.getAttribute('data-vehicle-id');
@@ -830,7 +827,16 @@
                     const currentDriverId = this.getAttribute('data-assigned-driver-id');
 
                     document.getElementById('deploy_vehicle_id_input').value = vehicleId;
-                    document.getElementById('deploy-asset-name-display').textContent = modelName;
+                    
+                    // Display Selected Fleet Model Name directly inside the Modal Form Header
+                    const modalHeaderTitle = document.getElementById('deployModalHeaderTitle');
+                    if (modalHeaderTitle) {
+                        modalHeaderTitle.innerHTML = `<i class="fa-solid fa-rocket text-warning me-2"></i> Deploy Fleet Unit &mdash; <span class="text-warning">${modelName}</span>`;
+                    }
+                    
+                    // Reset Inputs
+                    document.getElementById('deployment_location_input').value = '';
+                    document.getElementById('deployment_purpose_input').selectedIndex = 0;
 
                     const now = new Date();
                     now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
@@ -842,7 +848,6 @@
                     const driversList = (category === 'SEA') ? seaDrivers : landDrivers;
                     const vehiclesList = (category === 'SEA') ? seaVehicles : landVehicles;
 
-                    // Build Driver -> Vehicle Map
                     const driverVehicleMap = {};
                     vehiclesList.forEach(v => {
                         if (v.driver_id) {
@@ -865,11 +870,9 @@
                         } else if (!assignedVehicle) {
                             option.textContent = `👤 ${driver.name} [Standby & Available]`;
                         } else if (assignedVehicle.status === 'MAINTENANCE' || assignedVehicle.status === 'PENDING_DISPOSAL') {
-                            // Driver is assigned to a fleet in maintenance -> ALLOW REASSIGNMENT TO ACTIVE FLEET
                             option.textContent = `👤 ${driver.name} [Assigned to ${assignedVehicle.model_name} (Under Maintenance) - Reassignable]`;
                             option.disabled = false;
                         } else {
-                            // Driver is assigned to an active operational or deployed fleet -> RESTRICTED
                             option.textContent = `👤 ${driver.name} [Assigned to ${assignedVehicle.model_name} (${assignedVehicle.status})]`;
                             option.disabled = true;
                         }
@@ -883,7 +886,6 @@
                 });
             });
 
-            // Remove Bootstrap focus trap on modal open & init autocomplete
             const deployModal = document.getElementById('deployVehicleModal');
             if (deployModal) {
                 deployModal.addEventListener('shown.bs.modal', function () {

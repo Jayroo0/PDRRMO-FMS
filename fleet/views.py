@@ -365,7 +365,7 @@ def seacraft_dashboard(request):
 
 
 # =========================================================================
-# 5. LOGISTICS DASHBOARD (With Modal Driver Assignment & Location Auto-Suggest)
+# 5. LOGISTICS DASHBOARD
 # =========================================================================
 @login_required
 def logistics_dashboard(request):
@@ -379,7 +379,7 @@ def logistics_dashboard(request):
         action = request.POST.get('action')
         vehicle_id = request.POST.get('vehicle_id')
 
-        # ACTION A: DEPLOY VEHICLE (Requires Location, Time, & Personnel Operator Validation)
+        # ACTION A: DEPLOY VEHICLE (Requires Location, Purpose, Time, & Operator Validation)
         if action == 'deploy_vehicle':
             vehicle = get_object_or_404(Vehicle, id=vehicle_id)
             if vehicle.status.upper() == 'MAINTENANCE':
@@ -387,17 +387,16 @@ def logistics_dashboard(request):
                 return redirect('dashboard_portal:logistics_dashboard')
             
             location = request.POST.get('deployment_location', '').strip()
+            purpose = request.POST.get('deployment_purpose', '').strip()
             deploy_time_str = request.POST.get('deployment_time', '').strip()
             driver_id = request.POST.get('driver_id', '').strip()
 
-            if not location or not deploy_time_str:
-                messages.error(request, "Deployment location and deployment time are required to dispatch an asset.")
+            if not location or not deploy_time_str or not purpose:
+                messages.error(request, "Deployment location, deployment purpose, and deployment time are required to dispatch an asset.")
                 return redirect('dashboard_portal:logistics_dashboard')
 
-            # Handle Driver Assignment / Driver Switch during deployment
             if driver_id:
                 driver_obj = get_object_or_404(Driver, id=driver_id)
-                # Check 1 personnel to 1 fleet rule
                 conflicting_vehicle = Vehicle.objects.filter(assigned_driver=driver_obj).exclude(id=vehicle.id).first()
                 if conflicting_vehicle:
                     messages.error(
@@ -416,6 +415,7 @@ def logistics_dashboard(request):
 
             vehicle.status = 'DEPLOYED'
             vehicle.deployment_location = location
+            vehicle.deployment_purpose = purpose
             vehicle.deployment_time = parsed_time
             vehicle.save()
 
@@ -423,9 +423,9 @@ def logistics_dashboard(request):
                 request, 
                 vehicle, 
                 CHANGE, 
-                f"Deployed asset unit to {location} at {parsed_time.strftime('%Y-%m-%d %H:%M')} with operator {vehicle.assigned_driver.name}."
+                f"Deployed asset unit to {location} for '{purpose}' at {parsed_time.strftime('%Y-%m-%d %H:%M')} with operator {vehicle.assigned_driver.name}."
             )
-            messages.success(request, f"Asset unit '{vehicle.model_name}' deployed to '{location}' with operator '{vehicle.assigned_driver.name}'!")
+            messages.success(request, f"Asset unit '{vehicle.model_name}' deployed to '{location}' for '{purpose}' with operator '{vehicle.assigned_driver.name}'!")
             return redirect('dashboard_portal:logistics_dashboard')
 
         # ACTION B: RETURN VEHICLE TO DEPOT BASE
@@ -433,6 +433,7 @@ def logistics_dashboard(request):
             vehicle = get_object_or_404(Vehicle, id=vehicle_id)
             vehicle.status = 'OPERATIONAL'
             vehicle.deployment_location = None
+            vehicle.deployment_purpose = None
             vehicle.deployment_time = None
             vehicle.save()
             log_action_to_admin(request, vehicle, CHANGE, "Returned asset unit back to operational depot storage.")
@@ -456,7 +457,7 @@ def logistics_dashboard(request):
             messages.success(request, f"New fleet asset '{model_name}' has been securely registered to the base depot map.")
             return redirect('dashboard_portal:logistics_dashboard')
 
-        # ACTION D: SET/UNSET PERSONNEL OPERATOR (DRAWER OR QUICK ACTION)
+        # ACTION D: SET/UNSET PERSONNEL OPERATOR
         elif action == 'set_driver':
             vehicle = get_object_or_404(Vehicle, id=vehicle_id)
             driver_id = request.POST.get('driver_id')
@@ -488,6 +489,7 @@ def logistics_dashboard(request):
             vessel_to_archive.status = 'ARCHIVED'
             vessel_to_archive.assigned_driver = None
             vessel_to_archive.deployment_location = None
+            vessel_to_archive.deployment_purpose = None
             vessel_to_archive.deployment_time = None
             vessel_to_archive.save()
             log_action_to_admin(request, vessel_to_archive, CHANGE, f"Approved and permanently archived asset: {vessel_to_archive.model_name}")
@@ -503,9 +505,6 @@ def logistics_dashboard(request):
             messages.info(request, f"Disposal declined. {vessel_to_repair.model_name} reverted to MAINTENANCE status.")
             return redirect('dashboard_portal:logistics_dashboard')
 
-    # =========================================================================
-    # 🔄 GET WORKFLOW: DATASETS & DRIVER SEGREGATION
-    # =========================================================================
     all_vehicles = Vehicle.objects.all().select_related('vehicle_type', 'assigned_driver')
     
     status_order = Case(
@@ -531,7 +530,6 @@ def logistics_dashboard(request):
     land_vehicles = add_disposal_reasons(land_vehicles)
     sea_crafts = add_disposal_reasons(sea_crafts)
 
-    # Tab Data Partitioning
     land_standby = [v for v in land_vehicles if v.status == 'OPERATIONAL']
     land_deployed = [v for v in land_vehicles if v.status == 'DEPLOYED']
     land_maintenance = [v for v in land_vehicles if v.status in ['MAINTENANCE', 'PENDING_DISPOSAL']]
@@ -540,17 +538,14 @@ def logistics_dashboard(request):
     sea_deployed = [c for c in sea_crafts if c.status == 'DEPLOYED']
     sea_maintenance = [c for c in sea_crafts if c.status in ['MAINTENANCE', 'PENDING_DISPOSAL']]
 
-    # Segregate Drivers: Land vs Maritime Operators (MAR- license prefix)
     all_drivers = Driver.objects.filter(is_active=True)
     land_drivers = all_drivers.exclude(license_number__startswith="MAR-")
     sea_drivers = all_drivers.filter(license_number__startswith="MAR-")
 
-    # Mapping of active driver IDs and their assigned fleet models
     assigned_driver_ids = set(
         Vehicle.objects.filter(assigned_driver__isnull=False).values_list('assigned_driver_id', flat=True)
     )
     
-    # Map driver ID to assigned vehicle model name for status badges in selection
     assigned_driver_map = {
         v.assigned_driver_id: v.model_name for v in Vehicle.objects.filter(assigned_driver__isnull=False)
     }
@@ -635,6 +630,9 @@ def seacraft_dispatch_view(request):
 
         elif action == "return_vehicle":
             vehicle.status = "OPERATIONAL"
+            vehicle.deployment_location = None
+            vehicle.deployment_purpose = None
+            vehicle.deployment_time = None
             vehicle.save()
             log_action_to_admin(request, vehicle, CHANGE, f"Returned marine vessel {vehicle.model_name} back to base.")
             messages.success(request, f"{vehicle.model_name} has returned and is flagged as Operational.")

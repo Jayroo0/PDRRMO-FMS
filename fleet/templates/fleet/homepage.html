@@ -315,7 +315,7 @@
                                     <th>Equipment Model</th>
                                     <th>Identifier (Plate/Hull)</th>
                                     <th>Current Status</th>
-                                    <th>Deployment Location &amp; Time</th>
+                                    <th>Deployment Location, Mission &amp; Time</th>
                                     <th>Assigned Crew / Driver</th>
                                 </tr>
                             </thead>
@@ -328,10 +328,17 @@
                                         <td><span class="code-tag-blue">{{ vehicle.plate_number }}</span></td>
                                         <td><span class="status-pill dep">{{ vehicle.status }}</span></td>
                                         <td>
-                                            {% if vehicle.deployment_location %}
-                                                <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-danger me-1"></i> {{ vehicle.deployment_location }}</div>
+                                            {% if vehicle.deployment_location or vehicle.deployment_purpose or vehicle.deployment_time %}
+                                                {% if vehicle.deployment_location %}
+                                                    <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-danger me-1"></i> {{ vehicle.deployment_location }}</div>
+                                                {% else %}
+                                                    <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-danger me-1"></i> Field Deployment Zone</div>
+                                                {% endif %}
+                                                {% if vehicle.deployment_purpose %}
+                                                    <div class="small fw-semibold text-dark mt-1"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission: {{ vehicle.deployment_purpose }}</div>
+                                                {% endif %}
                                                 {% if vehicle.deployment_time %}
-                                                    <div class="text-muted small font-monospace"><i class="fa-solid fa-clock me-1"></i> {{ vehicle.deployment_time }}</div>
+                                                    <div class="text-muted small font-monospace mt-1"><i class="fa-solid fa-clock me-1"></i> {{ vehicle.deployment_time }}</div>
                                                 {% endif %}
                                             {% else %}
                                                 <span class="text-muted opacity-60 fw-normal">En Route / Active</span>
@@ -351,10 +358,17 @@
                                         <td><span class="code-tag-blue">{{ craft.plate_number }}</span></td>
                                         <td><span class="status-pill dep">{{ craft.status }}</span></td>
                                         <td>
-                                            {% if craft.deployment_location %}
-                                                <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-primary me-1"></i> {{ craft.deployment_location }}</div>
+                                            {% if craft.deployment_location or craft.deployment_purpose or craft.deployment_time %}
+                                                {% if craft.deployment_location %}
+                                                    <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-primary me-1"></i> {{ craft.deployment_location }}</div>
+                                                {% else %}
+                                                    <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-primary me-1"></i> Coastal Sector Deployment</div>
+                                                {% endif %}
+                                                {% if craft.deployment_purpose %}
+                                                    <div class="small fw-semibold text-dark mt-1"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission: {{ craft.deployment_purpose }}</div>
+                                                {% endif %}
                                                 {% if craft.deployment_time %}
-                                                    <div class="text-muted small font-monospace"><i class="fa-solid fa-clock me-1"></i> {{ craft.deployment_time }}</div>
+                                                    <div class="text-muted small font-monospace mt-1"><i class="fa-solid fa-clock me-1"></i> {{ craft.deployment_time }}</div>
                                                 {% endif %}
                                             {% else %}
                                                 <span class="text-muted opacity-60 fw-normal">En Route / Active</span>
@@ -538,7 +552,6 @@
 
     </main> 
 
-    <!-- SEAMLESS AUTO-REFRESH ENGINE (ZERO-FLICKER DOM SWAPPING) -->
     <script>
     (function() {
         let isSyncing = false;
@@ -558,7 +571,6 @@
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(html, 'text/html');
 
-                // 1. Update top metric stat boxes seamlessly
                 const currentStats = document.querySelectorAll('.stat-box-outline');
                 const newStats = doc.querySelectorAll('.stat-box-outline');
                 if (currentStats.length === newStats.length) {
@@ -569,7 +581,6 @@
                     });
                 }
 
-                // 2. Update deployment & maintenance table panels seamlessly
                 const currentPanels = document.querySelectorAll('.panel-container');
                 const newPanels = doc.querySelectorAll('.panel-container');
                 if (currentPanels.length === newPanels.length) {
@@ -586,7 +597,6 @@
             });
         }
 
-        // Poll every 5 seconds without triggering full-page reloads or visual flashing
         setInterval(updateDashboardSeamlessly, 5000);
     })();
     </script>
