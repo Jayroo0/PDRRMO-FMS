@@ -11,22 +11,18 @@
     <link rel="stylesheet" href="{% static 'fleet/css/dashboard_print.css' %}">
     
     <style>
-        /* =========================================================================
-           🖥️ CORPORATE COMMAND CENTER SCREEN LAYOUT ENGINE (HIGH VISIBILITY)
-           ========================================================================= */
         :root {
-            --brand-blue: #0f172a;       /* Corporate Deep Slate Navy */
-            --brand-orange: #ea580c;     /* Alert Orange Accent */
-            --brand-border: #cbd5e1;     /* Professional Gray Border */
-            --brand-bg: #f1f5f9;         /* Clean Executive Light Gray Canvas */
-            --text-main: #0f172a;        /* High-Definition Text Slate */
+            --brand-blue: #0f172a;       
+            --brand-orange: #ea580c;     
+            --brand-border: #cbd5e1;     
+            --brand-bg: #f1f5f9;         
+            --text-main: #0f172a;        
             
-            /* Corporate Status Metric Palette */
-            --status-op: #15803d;        /* Operational Green */
+            --status-op: #15803d;        
             --status-op-bg: #f0fdf4; 
-            --status-maint: #b91c1c;     /* Maintenance Red */
+            --status-maint: #b91c1c;     
             --status-maint-bg: #fef2f2;  
-            --status-dep: #1d4ed8;       /* Deployed Blue */
+            --status-dep: #1d4ed8;       
             --status-dep-bg: #eff6ff;    
         }
 
@@ -38,7 +34,6 @@
             font-size: 1.1rem;
         }
         
-        /* Top Navigation Header */
         .pdrrmo-nav { 
             background-color: var(--brand-blue); 
             border-bottom: 4px solid var(--brand-orange); 
@@ -62,12 +57,7 @@
             color: #ffffff; 
             border-color: #cbd5e1;
         }
-        .nav-link-btn.active-orange { 
-            background-color: var(--brand-orange); 
-            border-color: var(--brand-orange); 
-        }
 
-        /* HIGH-EMPHASIS CORPORATE TRACKING TICKERS */
         .stat-box-outline { 
             border: 1px solid var(--brand-border);
             border-top: 4px solid var(--brand-blue);
@@ -83,13 +73,12 @@
             letter-spacing: 0.08em;
         }
         .stat-massive-num {
-            font-size: 3.2rem; /* Massive focal emphasis */
+            font-size: 3.2rem; 
             font-weight: 800; 
             line-height: 1;
             letter-spacing: -0.04em;
         }
 
-        /* Unified Grid Panel Systems */
         .panel-container { 
             border: 1px solid var(--brand-border); 
             border-radius: 6px; 
@@ -108,7 +97,6 @@
             letter-spacing: 0.5px;
         }
         
-        /* High Density Table Architectures */
         .table-pdrrmo th { 
             background-color: #f8fafc; 
             color: #475569; 
@@ -130,7 +118,6 @@
             background-color: #f8fafc;
         }
         
-        /* Custom UI Elements */
         .code-tag-blue { 
             color: #0f172a; 
             font-weight: 700; 
@@ -143,7 +130,6 @@
             display: inline-block;
         }
 
-        /* Sharp Standardized Status Pills */
         .status-pill {
             display: inline-flex;
             align-items: center;
@@ -161,9 +147,6 @@
         
         .print-header { display: none; }
 
-        /* =========================================================================
-           🖨️ STABILIZED CSS PRINT LAYOUT ENGINE OVERRIDES
-           ========================================================================= */
         @media print {
             .pdrrmo-nav, .btn, form, .no-print, script { display: none !important; }
             @page { margin: 15mm; }
@@ -191,7 +174,6 @@
             .status-pill { border: 1px solid #000000 !important; background: transparent !important; color: #000000 !important; font-weight: bold !important; }
             .stat-massive-num { color: #111827 !important; font-size: 18pt !important; }
             
-            /* Ensure complete visibility when printing instead of hiding overflow rows */
             .table-responsive {
                 height: auto !important;
                 max-height: none !important;
@@ -333,6 +315,7 @@
                                     <th>Equipment Model</th>
                                     <th>Identifier (Plate/Hull)</th>
                                     <th>Current Status</th>
+                                    <th>Deployment Location &amp; Time</th>
                                     <th>Assigned Crew / Driver</th>
                                 </tr>
                             </thead>
@@ -344,6 +327,16 @@
                                         <td class="fw-bold text-primary">{{ vehicle.model_name }}</td>
                                         <td><span class="code-tag-blue">{{ vehicle.plate_number }}</span></td>
                                         <td><span class="status-pill dep">{{ vehicle.status }}</span></td>
+                                        <td>
+                                            {% if vehicle.deployment_location %}
+                                                <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-danger me-1"></i> {{ vehicle.deployment_location }}</div>
+                                                {% if vehicle.deployment_time %}
+                                                    <div class="text-muted small font-monospace"><i class="fa-solid fa-clock me-1"></i> {{ vehicle.deployment_time }}</div>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted opacity-60 fw-normal">En Route / Active</span>
+                                            {% endif %}
+                                        </td>
                                         <td class="fw-semibold text-secondary">
                                             {% if vehicle.assigned_driver %}<i class="fa-solid fa-user-check text-success me-1"></i> {{ vehicle.assigned_driver.name }}{% else %}<span class="text-muted opacity-60 fw-normal">Unassigned</span>{% endif %}
                                         </td>
@@ -357,6 +350,16 @@
                                         <td class="fw-bold text-primary">{{ craft.model_name }}</td>
                                         <td><span class="code-tag-blue">{{ craft.plate_number }}</span></td>
                                         <td><span class="status-pill dep">{{ craft.status }}</span></td>
+                                        <td>
+                                            {% if craft.deployment_location %}
+                                                <div class="fw-bold text-dark"><i class="fa-solid fa-location-dot text-primary me-1"></i> {{ craft.deployment_location }}</div>
+                                                {% if craft.deployment_time %}
+                                                    <div class="text-muted small font-monospace"><i class="fa-solid fa-clock me-1"></i> {{ craft.deployment_time }}</div>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted opacity-60 fw-normal">En Route / Active</span>
+                                            {% endif %}
+                                        </td>
                                         <td class="fw-semibold text-secondary">
                                             {% if craft.assigned_driver %}<i class="fa-solid fa-anchor text-info me-1"></i> {{ craft.assigned_driver.name }}{% else %}<span class="text-muted opacity-60 fw-normal">Unassigned</span>{% endif %}
                                         </td>
@@ -471,6 +474,7 @@
                                     <th>Equipment Model</th>
                                     <th>Identifier Code</th>
                                     <th>Status Flag</th>
+                                    <th>Reason for Maintenance</th>
                                     <th>Last Assigned Operator Log</th>
                                 </tr>
                             </thead>
@@ -482,6 +486,18 @@
                                         <td class="fw-bold text-primary">{{ vehicle.model_name }}</td>
                                         <td><span class="code-tag-blue">{{ vehicle.plate_number }}</span></td>
                                         <td><span class="status-pill maint">{{ vehicle.status }}</span></td>
+                                        <td class="text-danger small font-semibold">
+                                            {% if vehicle.maintenance_reason %}
+                                                <div><i class="fa-solid fa-wrench me-1"></i> {{ vehicle.maintenance_reason }}</div>
+                                                {% if vehicle.maintenance_date %}
+                                                    <div class="text-muted small opacity-75 mt-1" style="font-size: 0.75rem;">
+                                                        <i class="fa-solid fa-calendar-day me-1"></i> {{ vehicle.maintenance_date|date:"M d, Y h:i A" }}
+                                                    </div>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted italic opacity-75">No reason recorded</span>
+                                            {% endif %}
+                                        </td>
                                         <td class="text-muted small">
                                             {% if vehicle.assigned_driver %}<i class="fa-solid fa-user-slash me-1"></i> Linked: {{ vehicle.assigned_driver.name }}{% else %}Cleared / Standby{% endif %}
                                         </td>
@@ -495,6 +511,18 @@
                                         <td class="fw-bold text-primary">{{ craft.model_name }}</td>
                                         <td><span class="code-tag-blue">{{ craft.plate_number }}</span></td>
                                         <td><span class="status-pill maint">{{ craft.status }}</span></td>
+                                        <td class="text-danger small font-semibold">
+                                            {% if craft.maintenance_reason %}
+                                                <div><i class="fa-solid fa-wrench me-1"></i> {{ craft.maintenance_reason }}</div>
+                                                {% if craft.maintenance_date %}
+                                                    <div class="text-muted small opacity-75 mt-1" style="font-size: 0.75rem;">
+                                                        <i class="fa-solid fa-calendar-day me-1"></i> {{ craft.maintenance_date|date:"M d, Y h:i A" }}
+                                                    </div>
+                                                {% endif %}
+                                            {% else %}
+                                                <span class="text-muted italic opacity-75">No reason recorded</span>
+                                            {% endif %}
+                                        </td>
                                         <td class="text-muted small">
                                             {% if craft.assigned_driver %}<i class="fa-solid fa-user-slash me-1"></i> Linked: {{ craft.assigned_driver.name }}{% else %}Cleared / Standby{% endif %}
                                         </td>
@@ -510,27 +538,57 @@
 
     </main> 
 
+    <!-- SEAMLESS AUTO-REFRESH ENGINE (ZERO-FLICKER DOM SWAPPING) -->
     <script>
-    let currentDeployedCount = parseInt(document.getElementById('deployed-counter-card')?.innerText || 0);
+    (function() {
+        let isSyncing = false;
 
-    function checkForStatusUpdates() {
-        fetch("{% url 'dashboard_portal:logistics_dashboard' %}", {
-            headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        })
-        .then(response => response.text())
-        .then(html => {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const latestCount = parseInt(doc.getElementById('deployed-counter-card')?.innerText || 0);
+        function updateDashboardSeamlessly() {
+            if (isSyncing) return;
+            isSyncing = true;
 
-            if (latestCount !== currentDeployedCount) {
-                window.location.reload();
-            }
-        })
-        .catch(err => console.log("Background synchronization paused..."));
-    }
+            fetch(window.location.href, {
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("Sync network response error");
+                return response.text();
+            })
+            .then(html => {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(html, 'text/html');
 
-    setInterval(checkForStatusUpdates, 5000);
+                // 1. Update top metric stat boxes seamlessly
+                const currentStats = document.querySelectorAll('.stat-box-outline');
+                const newStats = doc.querySelectorAll('.stat-box-outline');
+                if (currentStats.length === newStats.length) {
+                    currentStats.forEach((stat, i) => {
+                        if (stat.innerHTML !== newStats[i].innerHTML) {
+                            stat.innerHTML = newStats[i].innerHTML;
+                        }
+                    });
+                }
+
+                // 2. Update deployment & maintenance table panels seamlessly
+                const currentPanels = document.querySelectorAll('.panel-container');
+                const newPanels = doc.querySelectorAll('.panel-container');
+                if (currentPanels.length === newPanels.length) {
+                    currentPanels.forEach((panel, i) => {
+                        if (panel.innerHTML !== newPanels[i].innerHTML) {
+                            panel.innerHTML = newPanels[i].innerHTML;
+                        }
+                    });
+                }
+            })
+            .catch(err => console.log("Background synchronization paused..."))
+            .finally(() => {
+                isSyncing = false;
+            });
+        }
+
+        // Poll every 5 seconds without triggering full-page reloads or visual flashing
+        setInterval(updateDashboardSeamlessly, 5000);
+    })();
     </script>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
