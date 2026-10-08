@@ -1,0 +1,62 @@
+[33mcommit 1c65d866a43f74d0a9bb769e632f959751c06761[m[33m ([m[1;36mHEAD -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Thu Oct 8 07:15:13 2026 +0800
+
+    Change_Today
+
+[33mcommit f8a3ea8adf908ad1288cd2d0c46d95fbe6e25edd[m[33m ([m[1;31morigin/main_live_location[m[33m)[m
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Wed Oct 7 07:30:22 2026 +0800
+
+    October_7_2026 - Added Driver login and dashboard, Vehicle Request Form, and Vehicle Deployment Form. Added new models for Driver, Vehicle Request, Vehicle Deployment, Maintenance Log, and Vehicle Maintenance Problem. Updated existing models to include new fields and relationships. Added new templates for driver dashboard, vehicle request form, and vehicle deployment form. Updated existing templates to include new features and functionality. Added new forms for vehicle request and vehicle deployment. Updated existing forms to include new fields and validation. Added new migrations for the new models and updated existing migrations for the changes made to existing models.
+
+[33mcommit 471888928d29d7781c7b985023ab01c30fc059ef[m
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Tue Oct 6 13:30:45 2026 +0800
+
+    October 2026 System Update: Added new CSS and JS files for dashboard customization, updated templates for improved user interface, and modified database schema to support new features.
+
+[33mcommit d861abc964d8add4668d407ccfcb8ba98ec3ee68[m[33m ([m[1;32mOct_3_Working[m[33m)[m
+Merge: 17b09a1 d5e1625
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Sat Oct 3 14:07:39 2026 +0800
+
+    Merge branch 'main' of https://github.com/Jayroo0/PDRRMO-FMS into main
+
+[33mcommit 17b09a11641ead913d44f632fa9058a7993934ae[m
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Sat Oct 3 13:56:14 2026 +0800
+
+    Changes_2pm_oct3
+
+[33mcommit 0739955f6c1b9af6d472724d86182825ae7e3f47[m
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Sat Oct 3 13:12:27 2026 +0800
+
+    from the original
+
+[33mcommit d5e16254f09c5c62b512f5dc1505a74d77538742[m
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Sat Oct 3 13:07:31 2026 +0800
+
+    oct_3_changes
+    
+    Final Change ready for def.
+
+[33mcommit 9710972d376e0ec1dff17c712f3927b1b97abfbb[m
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Sat Oct 3 12:31:09 2026 +0800
+
+    first commit
+
+[33mcommit 53b8b263a5483c9f57a7854d778f53461e7eee10[m
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Sat Oct 3 11:58:46 2026 +0800
+
+    Changes _ Oct_3_2026
+
+[33mcommit 422d77243565051e3e26a30bc4fbfca179552beb[m
+Author: Jayroo0 <201440070@psu.palawan.edu.ph>
+Date:   Mon Jul 27 17:49:31 2026 +0800
+
+    Duplicated from the other Project!
