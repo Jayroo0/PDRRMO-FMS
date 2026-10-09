@@ -1,3 +1,18 @@
+import csv
+import io
+from datetime import date, datetime, time, timedelta
+from xml.sax.saxutils import escape
+
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill
+from openpyxl.utils import get_column_letter
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import landscape, letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -7,7 +22,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Case, When, Value, IntegerField, Q
 from django.core.paginator import Paginator
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
@@ -371,6 +386,293 @@ def deployment_activity_log(request):
         })
 
     return render(request, 'fleet/deployment_activity_log.html', context)
+
+
+@login_required
+def logistics_generate_report(request):
+    user = request.user
+    user_groups = set(user.groups.values_list('name', flat=True))
+    dashboard_groups = {'Logistics Officers', 'Technicians', 'Maritime_Tech', 'Seacraft Dispatch'}
+    has_dashboard_group = bool(user_groups & dashboard_groups)
+    is_logistics = user.is_superuser or 'Logistics Officers' in user_groups
+    is_land_mechanic = 'Technicians' in user_groups
+    is_seacraft_technician = 'Maritime_Tech' in user_groups
+    is_seacraft_dispatch = (
+        user.is_superuser
+        or 'Seacraft Dispatch' in user_groups
+    )
+    if not has_dashboard_group and not user.is_superuser:
+        is_logistics = check_user_role(user, 'Logistics Officers', ['logistics', 'log', 'depot', 'fleet'])
+        is_land_mechanic = check_user_role(
+            user,
+            'Technicians',
+            ['tech', 'technician', 'repair', 'maintenance', 'mechanic'],
+        )
+        is_seacraft_technician = check_user_role(
+            user,
+            'Maritime_Tech',
+            ['maritime', 'sea', 'craft', 'tech', 'dispatch'],
+        )
+        is_seacraft_dispatch = any(
+            keyword in user.username.lower() for keyword in ['sea', 'maritime']
+        )
+    if not (is_logistics or is_land_mechanic or is_seacraft_technician or is_seacraft_dispatch):
+        messages.error(request, "Access restricted to authorized fleet operations and maintenance accounts.")
+        return redirect('dashboard_portal:homepage')
+
+    allowed_divisions = set()
+    if is_land_mechanic:
+        allowed_divisions.add('Land Asset')
+    if is_seacraft_technician or is_seacraft_dispatch:
+        allowed_divisions.add('Seacraft')
+
+    report_format = request.GET.get('format', '').lower()
+    report_kind = request.GET.get('report_kind', 'activity').lower()
+    maintenance_category = request.GET.get('maintenance_category', 'all').lower()
+    if report_kind not in {'activity', 'maintenance'}:
+        return HttpResponse("Choose an activity or maintenance report.", status=400)
+    if maintenance_category not in {'all', 'regular', 'other'}:
+        return HttpResponse("Choose all, regular, or other maintenance.", status=400)
+
+    if report_kind == 'maintenance':
+        report_title = 'Fleet Maintenance Report'
+        report_heading = 'Maintenance Activity Report'
+    else:
+        report_title = 'PDRRMO Fleet Deployment Report'
+        report_heading = 'Deployment Activity Report'
+
+    period = request.GET.get('period', '')
+    try:
+        if period == 'month':
+            selected = datetime.strptime(request.GET.get('month', ''), '%Y-%m').date()
+            start_date = selected.replace(day=1)
+            next_month = (start_date.replace(day=28) + timedelta(days=4)).replace(day=1)
+            end_date = next_month - timedelta(days=1)
+            period_label = start_date.strftime('%B %Y')
+        elif period == 'week':
+            year, week = request.GET.get('week', '').split('-W')
+            start_date = date.fromisocalendar(int(year), int(week), 1)
+            end_date = start_date + timedelta(days=6)
+            period_label = f"Week {int(week):02d}, {year}"
+        elif period == 'day':
+            start_date = date.fromisoformat(request.GET.get('day', ''))
+            end_date = start_date
+            period_label = start_date.strftime('%B %d, %Y')
+        elif period == 'custom':
+            start_date = date.fromisoformat(request.GET.get('start_date', ''))
+            end_date = date.fromisoformat(request.GET.get('end_date', ''))
+            if start_date > end_date:
+                raise ValueError("Start date must be on or before end date.")
+            period_label = f"{start_date:%b %d, %Y} to {end_date:%b %d, %Y}"
+        else:
+            raise ValueError("Choose a report period.")
+    except (TypeError, ValueError) as error:
+        return HttpResponse(f"Invalid report period: {escape(str(error))}", status=400)
+
+    if report_format not in {'print', 'csv', 'xlsx', 'pdf'}:
+        return HttpResponse("Choose Print, CSV, Excel, or PDF as the export format.", status=400)
+
+    start_datetime = timezone.make_aware(
+        datetime.combine(start_date, time.min),
+        timezone.get_current_timezone(),
+    )
+    end_datetime = timezone.make_aware(
+        datetime.combine(end_date + timedelta(days=1), time.min),
+        timezone.get_current_timezone(),
+    )
+    vehicle_content_type = ContentType.objects.get_for_model(Vehicle)
+    event_query = LogEntry.objects.filter(
+        content_type=vehicle_content_type,
+        action_time__gte=start_datetime,
+        action_time__lt=end_datetime,
+    )
+    if report_kind == 'maintenance':
+        maintenance_events = (
+            Q(change_message__startswith='Scheduled maintenance due: ')
+            | Q(change_message__startswith='Scheduled Tire replacement for ')
+            | Q(change_message__startswith='Scheduled Oil replacement for ')
+            | Q(change_message__startswith='Scheduled Other maintenance for ')
+            | Q(change_message__startswith='Reported maintenance fault for ')
+            | Q(change_message__startswith='Completed maintenance checklist and returned ')
+        )
+        if maintenance_category == 'regular':
+            maintenance_events &= (
+                Q(change_message__startswith='Scheduled maintenance due: Tire replacement')
+                | Q(change_message__startswith='Scheduled maintenance due: Oil replacement')
+                | Q(change_message__startswith='Scheduled Tire replacement for ')
+                | Q(change_message__startswith='Scheduled Oil replacement for ')
+            )
+        elif maintenance_category == 'other':
+            maintenance_events &= (
+                Q(change_message__startswith='Scheduled maintenance due: Other maintenance')
+                | Q(change_message__startswith='Scheduled Other maintenance for ')
+                | Q(change_message__startswith='Reported maintenance fault for ')
+                | Q(change_message__startswith='Completed maintenance checklist and returned ')
+            )
+        event_query = event_query.filter(maintenance_events)
+        category_label = {
+            'all': 'All maintenance',
+            'regular': 'Regular maintenance (tires and oil)',
+            'other': 'Other maintenance and repairs',
+        }[maintenance_category]
+        report_title = f'Fleet Maintenance Report - {category_label}'
+        report_heading = f'{category_label} Report'
+    else:
+        event_query = event_query.filter(
+            Q(change_message__startswith='Deployed asset unit to ')
+            | Q(change_message='Returned asset unit back to operational depot storage.')
+        )
+    events = list(event_query.select_related('user').order_by('-action_time', '-pk'))
+    vehicles_by_id = {
+        str(vehicle.pk): vehicle
+        for vehicle in Vehicle.objects.filter(
+            pk__in=[event.object_id for event in events]
+        ).select_related('vehicle_type')
+    }
+    rows = []
+    for event in events:
+        vehicle = vehicles_by_id.get(str(event.object_id))
+        division = 'Seacraft' if (
+            vehicle and vehicle.vehicle_type.name.strip().casefold() in {'marine', 'maritime'}
+        ) else 'Land Asset'
+        if not is_logistics and division not in allowed_divisions:
+            continue
+        if report_kind == 'maintenance':
+            if event.change_message.startswith('Scheduled maintenance due: '):
+                activity = 'Scheduled maintenance due'
+            elif event.change_message.startswith('Scheduled '):
+                activity = 'Maintenance scheduled'
+            elif event.change_message.startswith('Reported maintenance fault for '):
+                activity = 'Fault reported'
+            else:
+                activity = 'Maintenance completed'
+        else:
+            activity = 'Deployment' if event.change_message.startswith('Deployed') else 'Return'
+        rows.append([
+            timezone.localtime(event.action_time).strftime('%Y-%m-%d %H:%M'),
+            activity,
+            division,
+            event.object_repr,
+            event.change_message,
+            event.user.username if event.user else 'System',
+        ])
+
+    safe_period = f"{start_date:%Y%m%d}-{end_date:%Y%m%d}"
+    headers = ['Date & Time', 'Activity', 'Division', 'Fleet Asset', 'Activity Details', 'Recorded By']
+    spreadsheet_safe_rows = [
+        [
+            "'" + value if isinstance(value, str) and value.startswith(('=', '+', '-', '@')) else value
+            for value in row
+        ]
+        for row in rows
+    ]
+
+    if report_format == 'print':
+        return render(
+            request,
+            'fleet/logistics_deployment_report_print.html',
+            {
+                'period_label': period_label,
+                'headers': headers,
+                'report_rows': rows,
+                'generated_at': timezone.localtime(),
+                'report_heading': report_heading,
+                'report_title': report_title,
+            },
+        )
+
+    if report_format == 'csv':
+        output = io.StringIO(newline='')
+        writer = csv.writer(output)
+        writer.writerow([report_title, period_label])
+        writer.writerow(headers)
+        writer.writerows(spreadsheet_safe_rows)
+        response = HttpResponse(output.getvalue(), content_type='text/csv; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="fleet-{report_kind}-{safe_period}.csv"'
+        return response
+
+    if report_format == 'xlsx':
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = 'Fleet Report'
+        sheet.append([report_title, period_label])
+        sheet.append(headers)
+        for row in spreadsheet_safe_rows:
+            sheet.append(row)
+        sheet.freeze_panes = 'A3'
+        sheet.auto_filter.ref = sheet.dimensions
+        for cell in sheet[1]:
+            cell.font = Font(bold=True, color='FFFFFF', size=14)
+            cell.fill = PatternFill('solid', fgColor='1A365D')
+        for cell in sheet[2]:
+            cell.font = Font(bold=True, color='FFFFFF')
+            cell.fill = PatternFill('solid', fgColor='2563EB')
+        for column_index, width in enumerate((20, 16, 16, 34, 90, 24), start=1):
+            sheet.column_dimensions[get_column_letter(column_index)].width = width
+        output = io.BytesIO()
+        workbook.save(output)
+        response = HttpResponse(
+            output.getvalue(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        response['Content-Disposition'] = f'attachment; filename="fleet-{report_kind}-{safe_period}.xlsx"'
+        return response
+
+    output = io.BytesIO()
+    document = SimpleDocTemplate(
+        output,
+        pagesize=landscape(letter),
+        rightMargin=0.4 * inch,
+        leftMargin=0.4 * inch,
+        topMargin=0.45 * inch,
+        bottomMargin=0.45 * inch,
+        title=f'{report_title} - {period_label}',
+    )
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'ReportTitle',
+        parent=styles['Title'],
+        textColor=colors.HexColor('#1A365D'),
+        alignment=TA_CENTER,
+        spaceAfter=6,
+    )
+    body_style = ParagraphStyle(
+        'ReportCell',
+        parent=styles['BodyText'],
+        fontSize=7,
+        leading=9,
+    )
+    report_data = [[Paragraph(f'<b>{escape(value)}</b>', body_style) for value in headers]]
+    report_data.extend([
+        [Paragraph(escape(str(value)), body_style) for value in row]
+        for row in rows
+    ])
+    table = Table(
+        report_data,
+        repeatRows=1,
+        colWidths=[1.0 * inch, 0.75 * inch, 0.75 * inch, 1.35 * inch, 5.1 * inch, 1.0 * inch],
+    )
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1A365D')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.35, colors.HexColor('#CBD5E1')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F1F5F9')]),
+        ('LEFTPADDING', (0, 0), (-1, -1), 5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    story = [
+        Paragraph(escape(report_title), title_style),
+        Paragraph(escape(period_label), styles['Heading3']),
+        Spacer(1, 10),
+        table,
+    ]
+    document.build(story)
+    response = HttpResponse(output.getvalue(), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="fleet-{report_kind}-{safe_period}.pdf"'
+    return response
 
 
 # =========================================================================

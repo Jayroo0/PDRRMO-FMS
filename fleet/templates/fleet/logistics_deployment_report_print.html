@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ report_title|default:"Fleet Deployment Report" }} - {{ period_label }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { color: #172033; font-family: Arial, sans-serif; }
+        .report-heading { border-bottom: 3px solid #1A365D; }
+        @media print {
+            @page { size: landscape; margin: 12mm; }
+            body { font-size: 10pt; }
+            .table { font-size: 8pt; }
+        }
+    </style>
+</head>
+<body class="container-fluid p-4">
+    <header class="report-heading d-flex justify-content-between align-items-end pb-3 mb-4">
+        <div>
+            <div class="small text-uppercase fw-bold text-primary">PDRRMO Fleet Management</div>
+            <h1 class="h3 fw-bold mb-1">{{ report_heading|default:"Deployment Activity Report" }}</h1>
+            <div class="text-secondary">{{ period_label }}</div>
+        </div>
+        <div class="text-end small text-secondary">
+            <div>Generated {{ generated_at|date:"M d, Y H:i" }}</div>
+            <div>{{ report_rows|length }} recorded event(s)</div>
+        </div>
+    </header>
+    <table class="table table-sm table-bordered align-middle">
+        <thead class="table-light">
+            <tr>{% for header in headers %}<th scope="col">{{ header }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+            {% for row in report_rows %}
+            <tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center py-4 text-secondary">No activity was recorded for this report type and period.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <script>window.addEventListener('load', function () { window.print(); });</script>
+</body>
+</html>

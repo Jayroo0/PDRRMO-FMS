@@ -1,7 +1,10 @@
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
+from io import BytesIO
 
+from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.auth.models import Group, User
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -46,6 +49,149 @@ class LoginViewTests(TestCase):
         self.assertNotContains(response, 'id_license_authority')
         self.assertContains(response, 'Issuing authority is selected automatically from operator type.')
         self.assertContains(response, 'license authority: ${authority} (automatic).')
+        self.assertContains(response, 'data-menu-action="generate-report"')
+        self.assertContains(response, 'Generate Fleet Report')
+
+
+class LogisticsReportExportTests(TestCase):
+    def setUp(self):
+        group = Group.objects.create(name='Logistics Officers')
+        self.user = User.objects.create_user(username='report_logistics', password='SecurePass123!')
+        self.user.groups.add(group)
+        self.client.force_login(self.user)
+        self.land_type = VehicleType.objects.create(name='LAND')
+        self.vehicle = Vehicle.objects.create(
+            model_name='Report Land Vehicle',
+            plate_number='LAND-REPORT-01',
+            vehicle_type=self.land_type,
+        )
+        content_type = ContentType.objects.get_for_model(Vehicle)
+        self.event = LogEntry.objects.create(
+            user=self.user,
+            content_type=content_type,
+            object_id=str(self.vehicle.pk),
+            object_repr=str(self.vehicle),
+            action_flag=CHANGE,
+            change_message='Deployed asset unit to Puerto Princesa for Search and Rescue.',
+        )
+        today = timezone.localdate()
+        LogEntry.objects.filter(pk=self.event.pk).update(
+            action_time=timezone.make_aware(
+                datetime.combine(today, datetime.min.time()),
+                timezone.get_current_timezone(),
+            )
+        )
+
+    def test_menu_report_form_offers_periods_and_export_formats(self):
+        response = self.client.get(reverse('dashboard_portal:logistics_dashboard'))
+
+        self.assertContains(response, 'data-menu-action="generate-report"')
+        self.assertContains(response, 'value="month">Monthly')
+        self.assertContains(response, 'value="week">Weekly')
+        self.assertContains(response, 'value="day">Daily')
+        self.assertContains(response, 'value="custom">Custom date range')
+        self.assertContains(response, 'name="report_kind"')
+        self.assertContains(response, 'name="maintenance_category"')
+        self.assertContains(response, 'value="csv"')
+        self.assertContains(response, 'value="xlsx"')
+        self.assertContains(response, 'value="pdf"')
+        self.assertContains(response, 'action="/fleet/reports/activity/"')
+
+    def test_report_prints_and_exports_csv_xlsx_and_pdf(self):
+        today = timezone.localdate()
+        iso_year, iso_week, _ = today.isocalendar()
+        requests = (
+            ('print', {'period': 'day', 'day': today.isoformat()}),
+            ('csv', {'period': 'day', 'day': today.isoformat()}),
+            ('xlsx', {'period': 'week', 'week': f'{iso_year}-W{iso_week:02d}'}),
+            ('pdf', {'period': 'month', 'month': today.strftime('%Y-%m')}),
+            ('csv', {
+                'period': 'custom',
+                'start_date': today.isoformat(),
+                'end_date': today.isoformat(),
+            }),
+        )
+        for export_format, params in requests:
+            with self.subTest(export_format=export_format, period=params['period']):
+                response = self.client.get(
+                    reverse('dashboard_portal:logistics_generate_report'),
+                    {**params, 'format': export_format},
+                )
+                self.assertEqual(response.status_code, 200)
+                if export_format == 'print':
+                    self.assertContains(response, 'Deployment Activity Report')
+                    self.assertContains(response, 'window.print()')
+                else:
+                    self.assertIn('attachment;', response['Content-Disposition'])
+                if export_format == 'csv':
+                    self.assertIn('text/csv', response['Content-Type'])
+                    self.assertIn(b'Report Land Vehicle', response.content)
+                elif export_format == 'xlsx':
+                    self.assertIn(
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        response['Content-Type'],
+                    )
+                    from openpyxl import load_workbook
+
+                    workbook = load_workbook(BytesIO(response.content), read_only=True)
+                    self.assertEqual(workbook.active['A3'].value, today.strftime('%Y-%m-%d 00:00'))
+                    self.assertIn('Report Land Vehicle', workbook.active['D3'].value)
+                elif export_format == 'pdf':
+                    self.assertEqual(response['Content-Type'], 'application/pdf')
+                    self.assertTrue(response.content.startswith(b'%PDF'))
+
+    def test_report_rejects_invalid_range_and_unsupported_format(self):
+        reverse_url = reverse('dashboard_portal:logistics_generate_report')
+        invalid_range = self.client.get(
+            reverse_url,
+            {'format': 'csv', 'period': 'custom', 'start_date': '2026-10-09', 'end_date': '2026-10-01'},
+        )
+        unsupported_format = self.client.get(
+            reverse_url,
+            {'format': 'doc', 'period': 'day', 'day': timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(invalid_range.status_code, 400)
+        self.assertContains(unsupported_format, 'Choose Print, CSV, Excel, or PDF', status_code=400)
+
+    def test_report_requires_logistics_access(self):
+        self.client.force_login(User.objects.create_user(username='unauthorized_report_user'))
+
+        response = self.client.get(
+            reverse('dashboard_portal:logistics_generate_report'),
+            {'format': 'csv', 'period': 'day', 'day': timezone.localdate().isoformat()},
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:homepage'))
+
+    def test_seacraft_dispatch_can_generate_seacraft_activity_report(self):
+        sea_group = Group.objects.create(name='Seacraft Dispatch')
+        dispatch_user = User.objects.create_user(username='dispatch_report_user')
+        dispatch_user.groups.add(sea_group)
+        sea_type = VehicleType.objects.create(name='MARINE')
+        sea_vehicle = Vehicle.objects.create(
+            model_name='Report Seacraft',
+            plate_number='SEA-REPORT-01',
+            vehicle_type=sea_type,
+        )
+        LogEntry.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Vehicle),
+            object_id=str(sea_vehicle.pk),
+            object_repr=str(sea_vehicle),
+            action_flag=CHANGE,
+            change_message='Deployed asset unit to Honda Bay for Search and Rescue.',
+        )
+        self.client.force_login(dispatch_user)
+
+        response = self.client.get(
+            reverse('dashboard_portal:fleet_activity_report'),
+            {'format': 'csv', 'period': 'day', 'day': timezone.localdate().isoformat()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Report Seacraft', response.content)
+        self.assertNotIn(b'Report Land Vehicle', response.content)
 
 
 class DispatchDashboardAlignmentTests(TestCase):
@@ -441,6 +587,8 @@ class DispatchDashboardAlignmentTests(TestCase):
         self.assertContains(response, 'Connected to Dispatch Server')
         self.assertContains(response, 'Log Out')
         self.assertContains(response, 'aria-label="Open seacraft dispatch menu"')
+        self.assertContains(response, 'data-menu-action="generate-report"')
+        self.assertContains(response, 'Generate Fleet Report')
 
     def test_dispatch_deployment_details_are_visible_in_logistics_dashboard(self):
         craft = self.create_vehicle(
@@ -647,6 +795,163 @@ class MechanicMaintenanceWorkflowTests(TestCase):
             reverse(url_name),
             {'vehicle_id': vehicle.id, 'action_type': action, **data},
         )
+
+    def test_mechanic_dashboards_offer_report_generation(self):
+        for user, dashboard in (
+            (self.land_mechanic, 'dashboard_portal:repairman_dashboard'),
+            (self.sea_mechanic, 'dashboard_portal:seacraft_dashboard'),
+        ):
+            with self.subTest(dashboard=dashboard):
+                self.client.force_login(user)
+                response = self.client.get(reverse(dashboard))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'id="mechanicMenuDrawer"')
+                self.assertContains(response, 'aria-label="Open mechanic menu"')
+                self.assertContains(response, 'Maintenance Menu')
+                self.assertContains(response, 'Maintenance Workbench')
+                self.assertContains(response, 'data-menu-action="print"')
+                self.assertContains(response, 'data-menu-action="generate-report"')
+                self.assertContains(response, 'Log Out')
+                self.assertContains(response, 'Generate Fleet Report')
+                self.assertContains(response, 'value="custom">Custom date range')
+                self.assertContains(response, 'value="xlsx"')
+                self.assertContains(response, 'Regular maintenance (tires and oil)')
+
+    def test_mechanic_report_is_limited_to_its_asset_division(self):
+        content_type = ContentType.objects.get_for_model(Vehicle)
+        LogEntry.objects.create(
+            user=self.land_mechanic,
+            content_type=content_type,
+            object_id=str(self.land_vehicle.pk),
+            object_repr=str(self.land_vehicle),
+            action_flag=CHANGE,
+            change_message='Deployed asset unit to Puerto Princesa for Search and Rescue.',
+        )
+        LogEntry.objects.create(
+            user=self.sea_mechanic,
+            content_type=content_type,
+            object_id=str(self.seacraft.pk),
+            object_repr=str(self.seacraft),
+            action_flag=CHANGE,
+            change_message='Deployed asset unit to Honda Bay for Search and Rescue.',
+        )
+        report_url = reverse('dashboard_portal:fleet_activity_report')
+        params = {
+            'format': 'csv',
+            'period': 'day',
+            'day': timezone.localdate().isoformat(),
+        }
+
+        for user, included_asset, excluded_asset in (
+            (self.land_mechanic, b'Land Work Vehicle', b'Sea Work Vessel'),
+            (self.sea_mechanic, b'Sea Work Vessel', b'Land Work Vehicle'),
+        ):
+            with self.subTest(username=user.username):
+                self.client.force_login(user)
+                response = self.client.get(report_url, params)
+
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(included_asset, response.content)
+                self.assertNotIn(excluded_asset, response.content)
+
+    def test_maintenance_reports_include_regular_and_other_work_types(self):
+        content_type = ContentType.objects.get_for_model(Vehicle)
+        events = (
+            (self.land_vehicle, 'Scheduled Tire replacement for 2026-10-09: Replace front tires.'),
+            (self.land_vehicle, 'Scheduled Oil replacement for 2026-10-09: Replace engine oil.'),
+            (self.land_vehicle, 'Scheduled Other maintenance for 2026-10-09: Repair body panel.'),
+            (self.land_vehicle, 'Reported maintenance fault for Land Work Vehicle: Engine: Belt noise'),
+            (self.land_vehicle, 'Completed maintenance checklist and returned Land Work Vehicle to operational status.'),
+            (self.seacraft, 'Scheduled Tire replacement for 2026-10-09: Replace trailer tires.'),
+        )
+        for vehicle, message in events:
+            LogEntry.objects.create(
+                user=self.land_mechanic,
+                content_type=content_type,
+                object_id=str(vehicle.pk),
+                object_repr=str(vehicle),
+                action_flag=CHANGE,
+                change_message=message,
+            )
+        report_url = reverse('dashboard_portal:fleet_activity_report')
+        base_params = {
+            'report_kind': 'maintenance',
+            'format': 'csv',
+            'period': 'day',
+            'day': timezone.localdate().isoformat(),
+        }
+
+        self.client.force_login(self.land_mechanic)
+        regular_report = self.client.get(
+            report_url,
+            {**base_params, 'maintenance_category': 'regular'},
+        )
+        other_report = self.client.get(
+            report_url,
+            {**base_params, 'maintenance_category': 'other'},
+        )
+        all_report = self.client.get(
+            report_url,
+            {**base_params, 'maintenance_category': 'all'},
+        )
+
+        self.assertEqual(regular_report.status_code, 200)
+        self.assertIn(b'Regular maintenance', regular_report.content)
+        self.assertIn(b'Tire replacement', regular_report.content)
+        self.assertIn(b'Oil replacement', regular_report.content)
+        self.assertNotIn(b'body panel', regular_report.content)
+        self.assertNotIn(b'Sea Work Vessel', regular_report.content)
+        self.assertEqual(other_report.status_code, 200)
+        self.assertIn(b'body panel', other_report.content)
+        self.assertIn(b'Belt noise', other_report.content)
+        self.assertIn(b'Completed maintenance checklist', other_report.content)
+        self.assertNotIn(b'Tire replacement', other_report.content)
+        self.assertEqual(all_report.status_code, 200)
+        self.assertIn(b'Tire replacement', all_report.content)
+        self.assertIn(b'body panel', all_report.content)
+
+    def test_maintenance_report_supports_print_and_file_exports(self):
+        LogEntry.objects.create(
+            user=self.land_mechanic,
+            content_type=ContentType.objects.get_for_model(Vehicle),
+            object_id=str(self.land_vehicle.pk),
+            object_repr=str(self.land_vehicle),
+            action_flag=CHANGE,
+            change_message='Reported maintenance fault for Land Work Vehicle: Engine: Belt noise',
+        )
+        report_url = reverse('dashboard_portal:fleet_activity_report')
+        params = {
+            'report_kind': 'maintenance',
+            'maintenance_category': 'other',
+            'period': 'day',
+            'day': timezone.localdate().isoformat(),
+        }
+
+        self.client.force_login(self.land_mechanic)
+        for export_format in ('print', 'csv', 'xlsx', 'pdf'):
+            with self.subTest(format=export_format):
+                response = self.client.get(
+                    report_url,
+                    {**params, 'format': export_format},
+                )
+                self.assertEqual(response.status_code, 200)
+                if export_format == 'print':
+                    self.assertContains(response, 'Other maintenance and repairs Report')
+                    self.assertContains(response, 'Belt noise')
+                elif export_format == 'pdf':
+                    self.assertEqual(response['Content-Type'], 'application/pdf')
+                    self.assertTrue(response.content.startswith(b'%PDF'))
+                    self.assertIn('fleet-maintenance-', response['Content-Disposition'])
+                elif export_format == 'xlsx':
+                    self.assertIn(
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        response['Content-Type'],
+                    )
+                    self.assertIn('fleet-maintenance-', response['Content-Disposition'])
+                else:
+                    self.assertIn(b'Other maintenance and repairs', response.content)
+                    self.assertIn(b'Belt noise', response.content)
 
     def test_fault_description_is_required_before_maintenance(self):
         for vehicle, is_seacraft in (

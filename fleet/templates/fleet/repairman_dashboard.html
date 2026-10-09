@@ -36,23 +36,16 @@
 
     <nav class="navbar navbar-dark nav-header px-4 py-2 shadow-sm mb-4">
         <span class="navbar-brand fw-bold text-white"><i class="fa-solid fa-screwdriver-wrench text-warning"></i> Land Assets Mechanical Workbench</span>
-        <div class="d-flex align-items-center gap-3">
-            <button type="button" class="dashboard-print-trigger" aria-label="Print dashboard">
-                <i class="fa-solid fa-print" aria-hidden="true"></i> Print
-            </button>
-            {% if user.is_authenticated %}
-                <div class="px-3 py-1.5 rounded-full bg-sky-600/20 text-white text-xs font-bold uppercase tracking-wide border border-sky-400/50">
-                    {{ user.first_name|default:user.username }} {{ user.last_name|default:'' }}
-                </div>
-            {% endif %}
-            <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="d-inline m-0">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-outline-light fw-bold px-3">
-                    <i class="fa-solid fa-right-from-bracket me-1"></i> Log Out
-                </button>
-            </form>
-        </div>
+        <button type="button" class="btn btn-sm btn-outline-light fw-bold px-3"
+                data-bs-toggle="offcanvas" data-bs-target="#mechanicMenuDrawer"
+                aria-controls="mechanicMenuDrawer" aria-label="Open mechanic menu">
+            <i class="fa-solid fa-bars me-1"></i>Menu
+        </button>
     </nav>
+
+    {% include "fleet/_mechanic_menu_drawer.html" %}
+
+    {% include "fleet/_activity_report_modal.html" %}
 
     <div class="container-fluid px-4">
         
@@ -339,6 +332,8 @@
 
     <script src="{% static 'fleet/js/dashboard_views.js' %}"></script>
     <script src="{% static 'fleet/js/dashboard_print.js' %}"></script>
+    <script src="{% static 'fleet/js/activity_report.js' %}"></script>
+    <script src="{% static 'fleet/js/mechanic_menu.js' %}"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             const fleetTabs = document.querySelectorAll('[data-land-fleet-tab]');

@@ -10,6 +10,8 @@ urlpatterns = [
     # 📑 Public/internal home dashboard.
     path('home/', views.homepage, name='homepage'),
     path('home/deployments/', views.deployment_activity_log, name='deployment_activity_log'),
+    path('logistics/reports/deployments/', views.logistics_generate_report, name='logistics_generate_report'),
+    path('fleet/reports/activity/', views.logistics_generate_report, name='fleet_activity_report'),
 
     # 🔀 Central Gateway Router
     path('portal/dispatch/', views.dashboard_router, name='dashboard_portal'),
