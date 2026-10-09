@@ -5,11 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Maritime Vessels Dashboard | PDRRMO</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <link rel="stylesheet" href="{% static 'fleet/css/asset_grid.css' %}">
     <link rel="stylesheet" href="{% static 'fleet/css/dashboard_views.css' %}">
     <link rel="stylesheet" href="{% static 'fleet/css/dashboard_print.css' %}">
     <link rel="stylesheet" href="{% static 'fleet/css/dashboard_theme.css' %}">
+    <style>
+        .dashboard-view-list[data-view-type="table"] tbody tr[data-sea-fleet-group][hidden] {
+            display: none !important;
+        }
+    </style>
 </head>
 <body class="dashboard-shell bg-gray-100 font-sans min-h-screen flex flex-col justify-between">
 
@@ -39,138 +45,221 @@
     </header>
 
     <main class="flex-grow p-6 max-w-7xl w-full mx-auto space-y-4">
-        
+        <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Seacraft fleet status">
+            <li class="nav-item" role="presentation">
+                <button type="button" class="nav-link active" id="sea-maintenance-tab" role="tab" aria-controls="sea-fleet-table" aria-selected="true" data-sea-fleet-tab="maintenance">
+                    <i class="fa-solid fa-screwdriver-wrench me-1"></i> Maintenance
+                    <span class="badge bg-danger ms-1">{{ maintenance_count }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button type="button" class="nav-link" id="sea-operational-tab" role="tab" aria-controls="sea-fleet-table" aria-selected="false" data-sea-fleet-tab="operational">
+                    <i class="fa-solid fa-ship me-1"></i> Operational Fleet
+                    <span class="badge bg-primary ms-1">{{ operational_count }}</span>
+                </button>
+            </li>
+        </ul>
+
         <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
             <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="font-bold text-gray-800 uppercase tracking-wider text-sm">Active Marine Fleet Logs</h2>
+                <h2 class="font-bold text-gray-800 uppercase tracking-wider text-sm">Seacraft Mechanical Workbench</h2>
                 <span class="bg-sky-100 text-sky-800 text-xs font-bold px-2.5 py-1 rounded-full uppercase">
-                    Total Tracked: {{ vehicles.count }}
+                    Total tracked: {{ vehicles|length }}
                 </span>
             </div>
 
             <div class="overflow-x-auto dashboard-view-list" data-view-list="marine-work-orders" data-view-type="table" data-view-default="grid">
-                <table class="w-full text-left border-collapse text-sm asset-grid-table asset-grid-table--sea">
+                <table id="sea-fleet-table" class="w-full text-left border-collapse text-sm asset-grid-table asset-grid-table--sea">
                     <thead>
                         <tr class="bg-gray-100 text-gray-600 uppercase font-bold tracking-wider text-xs border-b border-gray-200">
-                            <th class="px-6 py-3">Vessel Model Name</th>
-                            <th class="px-6 py-3">Registry Index / Plate</th>
-                            <th class="px-6 py-3">Assigned Operator</th>
-                            <th class="px-6 py-3">Current Condition Status</th>
+                            <th class="px-6 py-3">Vessel model</th>
+                            <th class="px-6 py-3">Registry / Hull ID</th>
+                            <th class="px-6 py-3">Current status</th>
                             <th class="px-6 py-3">Maintenance action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200 text-gray-700">
                         {% for craft in vehicles %}
-                            <tr class="hover:bg-gray-50/70 transition">
+                            <tr data-sea-fleet-group="{% if craft.status == 'MAINTENANCE' or craft.status == 'PENDING_DISPOSAL' %}maintenance{% else %}operational{% endif %}"{% if craft.status == 'OPERATIONAL' or craft.status == 'DEPLOYED' %} hidden{% endif %}>
                                 <td class="px-6 py-4 font-semibold text-gray-900">{{ craft.model_name }}</td>
                                 <td class="px-6 py-4 font-mono text-gray-500 font-medium">{{ craft.plate_number }}</td>
                                 <td class="px-6 py-4">
-                                    {% if craft.assigned_driver %}
-                                        <span class="text-gray-800 font-medium">{{ craft.assigned_driver.name }}</span>
-                                    {% else %}
-                                        <span class="text-gray-400 italic font-normal">Standby No Driver</span>
-                                    {% endif %}
-                                </td>
-                                <td class="px-6 py-4">
                                     {% if craft.status == 'MAINTENANCE' %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 uppercase border border-amber-200">
-                                            Maintenance Inbound
-                                        </span>
+                                        <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-bold uppercase text-amber-800">Maintenance</span>
                                         <div class="mt-2 max-w-sm rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                                            <strong>User-reported fault:</strong>
-                                            {{ craft.maintenance_problem|default:"No fault description recorded." }}
+                                            <strong>User-reported fault:</strong> {{ craft.maintenance_problem|default:"No fault description recorded." }}
                                         </div>
-                                    {% elif craft.status == 'OPERATIONAL' %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 uppercase border border-emerald-200">
-                                            Ready Operational
-                                        </span>
                                     {% elif craft.status == 'PENDING_DISPOSAL' %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 uppercase border border-amber-200">
-                                            Pending Disposal
-                                        </span>
-                                        <div class="mt-1 text-xs text-red-700">
-                                            <strong>Disposal reason:</strong>
-                                            {{ craft.disposal_reason|default:"No reason recorded." }}
+                                        <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-bold uppercase text-amber-800">Pending disposal</span>
+                                        <div class="mt-1 text-xs text-red-700"><strong>Disposal reason:</strong> {{ craft.disposal_reason|default:"No reason recorded." }}</div>
+                                    {% elif craft.status == 'DEPLOYED' %}
+                                        <span class="inline-flex items-center rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-bold uppercase text-sky-800">Deployed</span>
+                                        <div class="mt-2 max-w-sm rounded border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
+                                            <div><strong>Location:</strong> {{ craft.deployment_location|default:"Not specified" }}</div>
+                                            <div><strong>Mission detail:</strong> {{ craft.deployment_purpose|default:"Not specified" }}</div>
+                                            {% if craft.deployment_time %}
+                                                <div><strong>Deployed:</strong> {{ craft.deployment_time|date:"M j, Y, P" }}</div>
+                                            {% endif %}
+                                            {% if craft.assigned_driver %}
+                                                <div class="mt-1"><strong>Driver:</strong> {{ craft.assigned_driver.name }}</div>
+                                                {% if craft.assigned_driver.phone_number %}
+                                                    <a class="mt-1 inline-flex items-center rounded border border-sky-700 px-2 py-1 font-semibold text-sky-800 hover:bg-sky-100" href="tel:{{ craft.assigned_driver.phone_number }}">
+                                                        <i class="fa-solid fa-phone mr-1"></i> Call driver · {{ craft.assigned_driver.phone_number }}
+                                                    </a>
+                                                {% else %}
+                                                    <div class="mt-1 text-gray-500">No driver phone number recorded.</div>
+                                                {% endif %}
+                                            {% endif %}
                                         </div>
                                     {% else %}
-                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 uppercase border border-blue-200">
-                                            {{ craft.status }}
-                                        </span>
+                                        <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold uppercase text-emerald-800">Operational</span>
+                                    {% endif %}
+                                    {% if craft.scheduled_maintenance_date %}
+                                        <div class="mt-2 text-xs text-amber-800">
+                                            <strong>{{ craft.get_scheduled_maintenance_type_display }} due:</strong> {{ craft.scheduled_maintenance_date|date:"M j, Y" }}
+                                            {% if craft.scheduled_maintenance_description %}<div>{{ craft.scheduled_maintenance_description }}</div>{% endif %}
+                                        </div>
                                     {% endif %}
                                 </td>
                                 <td class="px-6 py-4">
-                                    <div class="dashboard-row-actions flex-col items-start">
-                                        {% if craft.status == 'MAINTENANCE' %}
-                                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="w-full max-w-md rounded border border-gray-200 bg-gray-50 p-3">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                                <input type="hidden" name="action_type" value="COMPLETE_MAINTENANCE">
-                                                <fieldset>
-                                                    <legend class="font-bold text-gray-900">Return-to-service checklist</legend>
-                                                    <p class="mb-2 text-xs text-gray-600">Verify and check every item before returning the vessel to service.</p>
-                                                    {% for value, label in maintenance_checklist %}
-                                                        <label class="mb-1 flex items-start gap-2 text-xs text-gray-700">
-                                                            <input class="mt-0.5" type="checkbox" name="maintenance_checklist" value="{{ value }}" id="sea_{{ craft.id }}_{{ value }}" required>
-                                                            <span>{{ label }}</span>
-                                                        </label>
-                                                    {% endfor %}
-                                                </fieldset>
-                                                <button type="submit" class="mt-2 rounded bg-emerald-700 px-3 py-2 text-xs font-bold text-white hover:bg-emerald-800">
-                                                    <i class="fa-solid fa-clipboard-check mr-1"></i> Complete checks &amp; return to service
+                                    <div class="dashboard-row-actions">
+                                        {% if craft.status == 'MAINTENANCE' or craft.status == 'PENDING_DISPOSAL' or craft.status == 'OPERATIONAL' or craft.status == 'DEPLOYED' %}
+                                            <button type="button" class="rounded bg-sky-700 px-3 py-2 text-xs font-bold text-white hover:bg-sky-800" data-bs-toggle="modal" data-bs-target="#seaMaintenanceModal{{ craft.id }}">
+                                                {% if craft.status == 'MAINTENANCE' %}Open return checklist{% elif craft.status == 'PENDING_DISPOSAL' %}Manage disposal request{% else %}Report fault{% endif %}
+                                            </button>
+                                            {% if craft.status == 'OPERATIONAL' %}
+                                                <button type="button" class="rounded border border-sky-700 px-3 py-2 text-xs font-bold text-sky-800 hover:bg-sky-50" data-bs-toggle="modal" data-bs-target="#seaScheduleModal{{ craft.id }}">
+                                                    <i class="fa-solid fa-calendar-plus mr-1"></i> Schedule other maintenance
                                                 </button>
-                                            </form>
-                                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="m-0" onsubmit="return captureDisposalRemarks(this);">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                                <input type="hidden" name="action_type" value="FLAG_DISPOSAL">
-                                                <input type="hidden" name="disposal_remarks" id="remarks_input_{{ craft.id }}" value="">
-                                                <button type="submit" class="mt-2 rounded border border-red-300 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 hover:bg-red-600 hover:text-white">Move for disposal review</button>
-                                            </form>
-                                        {% elif craft.status == 'PENDING_DISPOSAL' %}
-                                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="marine-disposal-update">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                                <input type="hidden" name="action_type" value="UPDATE_DISPOSAL_REASON">
-                                                <input type="text" name="disposal_remarks" value="{{ craft.disposal_reason }}" aria-label="Updated disposal reason for {{ craft.model_name }}" placeholder="Enter disposal reason" required class="w-48 rounded border border-gray-300 px-2 py-1 text-xs">
-                                                <button type="submit" class="rounded border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-bold text-sky-700 hover:bg-sky-600 hover:text-white">Update reason</button>
-                                            </form>
-                                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="m-0" onsubmit="return confirm('Cancel the disposal request and return this vessel to maintenance?');">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                                <input type="hidden" name="action_type" value="UNDO_DISPOSAL">
-                                                <button type="submit" class="rounded border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-600 hover:text-white">Undo disposal</button>
-                                            </form>
-                                        {% elif craft.status == 'OPERATIONAL' or craft.status == 'DEPLOYED' %}
-                                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="w-full max-w-md rounded border border-gray-200 bg-gray-50 p-3">
-                                                {% csrf_token %}
-                                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                                <input type="hidden" name="action_type" value="REPORT_FAULT">
-                                                <label for="sea_fault_{{ craft.id }}" class="mb-1 block text-xs font-bold text-gray-800">What fault or symptom did the user report?</label>
-                                                <textarea id="sea_fault_{{ craft.id }}" name="fault_description" rows="3" maxlength="1000" placeholder="Describe the issue and when it occurs." required class="w-full rounded border border-gray-300 p-2 text-sm"></textarea>
-                                                <p class="my-1 text-xs text-gray-600">A fault description is required before this vessel can enter maintenance.</p>
-                                                <button type="submit" class="rounded bg-red-700 px-3 py-2 text-xs font-bold text-white hover:bg-red-800">
-                                                    <i class="fa-solid fa-screwdriver-wrench mr-1"></i> Record fault &amp; move to maintenance
-                                                </button>
-                                            </form>
+                                            {% endif %}
                                         {% else %}
-                                            <span class="text-xs text-gray-500">No mechanic action is available for this status.</span>
+                                            <span class="text-xs text-gray-500">No mechanic action is available.</span>
                                         {% endif %}
                                     </div>
                                 </td>
                             </tr>
                         {% empty %}
-                            <tr>
-                                <td colspan="5" class="px-6 py-12 text-center text-gray-400 font-medium italic">
-                                    No maritime tracking vessels registered inside this sector map layer database.
-                                </td>
-                            </tr>
+                            <tr><td colspan="4" class="px-6 py-12 text-center text-gray-400 italic">No maritime vessels registered.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
         </div>
-        
     </main>
+
+    {% for craft in vehicles %}
+        {% if craft.status == 'MAINTENANCE' or craft.status == 'PENDING_DISPOSAL' or craft.status == 'OPERATIONAL' or craft.status == 'DEPLOYED' %}
+        <div class="modal fade" id="seaMaintenanceModal{{ craft.id }}" tabindex="-1" aria-labelledby="seaMaintenanceModalLabel{{ craft.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-5 font-bold" id="seaMaintenanceModalLabel{{ craft.id }}">Maintenance action</h2>
+                            <div class="text-sm text-gray-600">{{ craft.model_name }} · {{ craft.plate_number }}</div>
+                            <div class="text-sm font-semibold text-sky-700"><i class="fa-solid fa-user mr-1"></i> Driver: {{ craft.assigned_driver.name|default:"Unassigned" }}</div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% if craft.status == 'MAINTENANCE' %}
+                            <div class="mb-4 rounded border border-amber-200 bg-amber-50 p-3 text-amber-900">
+                                <strong>User-reported fault:</strong> {{ craft.maintenance_problem|default:"No fault description recorded." }}
+                            </div>
+                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                <input type="hidden" name="action_type" value="COMPLETE_MAINTENANCE">
+                                <fieldset>
+                                    <legend class="mb-1 font-bold text-gray-900">Return-to-service checklist</legend>
+                                    <p class="mb-3 text-sm text-gray-600">Verify every item before returning the vessel to service.</p>
+                                    {{ craft.checklist_form.maintenance_checklist }}
+                                </fieldset>
+                                <button type="submit" class="mt-4 rounded bg-emerald-700 px-4 py-2 font-bold text-white hover:bg-emerald-800">
+                                    <i class="fa-solid fa-clipboard-check mr-1"></i> Complete checks &amp; return to service
+                                </button>
+                            </form>
+                            <hr class="my-4">
+                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" onsubmit="return captureDisposalRemarks(this);">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                <input type="hidden" name="action_type" value="FLAG_DISPOSAL">
+                                <input type="hidden" name="disposal_remarks" id="remarks_input_{{ craft.id }}" value="">
+                                <button type="submit" class="rounded border border-red-300 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-50">Move for disposal review</button>
+                            </form>
+                        {% elif craft.status == 'PENDING_DISPOSAL' %}
+                            <p class="mb-3 text-sm text-amber-800">This vessel is pending disposal review.</p>
+                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" class="mb-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                <input type="hidden" name="action_type" value="UPDATE_DISPOSAL_REASON">
+                                <label for="sea_disposal_reason_{{ craft.id }}" class="mb-1 block font-semibold">Disposal reason</label>
+                                <input id="sea_disposal_reason_{{ craft.id }}" type="text" name="disposal_remarks" value="{{ craft.disposal_reason }}" required class="w-full rounded border border-gray-300 px-3 py-2">
+                                <button type="submit" class="mt-2 rounded border border-sky-700 px-3 py-2 text-sm font-semibold text-sky-800">Update reason</button>
+                            </form>
+                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post" onsubmit="return confirm('Cancel the disposal request and return this vessel to maintenance?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                <input type="hidden" name="action_type" value="UNDO_DISPOSAL">
+                                <button type="submit" class="rounded border border-amber-500 px-3 py-2 text-sm font-semibold text-amber-800">Undo disposal request</button>
+                            </form>
+                        {% else %}
+                            <p class="mb-4 text-sm text-gray-600">Record the fault reported by the end-user before moving this vessel into maintenance.</p>
+                            <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                                <input type="hidden" name="action_type" value="REPORT_FAULT">
+                                <label for="{{ craft.fault_form.fault_type.id_for_label }}" class="mb-1 block font-bold">{{ craft.fault_form.fault_type.label }}</label>
+                                {{ craft.fault_form.fault_type }}
+                                <label for="{{ craft.fault_form.fault_description.id_for_label }}" class="mb-1 mt-3 block font-bold">{{ craft.fault_form.fault_description.label }}</label>
+                                {{ craft.fault_form.fault_description }}
+                                <button type="submit" class="mt-4 rounded bg-red-700 px-4 py-2 font-bold text-white hover:bg-red-800">
+                                    <i class="fa-solid fa-screwdriver-wrench mr-1"></i> Record fault &amp; move to maintenance
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% if craft.status == 'OPERATIONAL' %}
+        <div class="modal fade" id="seaScheduleModal{{ craft.id }}" tabindex="-1" aria-labelledby="seaScheduleModalLabel{{ craft.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-5 font-bold" id="seaScheduleModalLabel{{ craft.id }}">Schedule preventive maintenance</h2>
+                            <div class="text-sm text-gray-600">{{ craft.model_name }} · {{ craft.plate_number }}</div>
+                            <div class="text-sm font-semibold text-sky-700"><i class="fa-solid fa-user mr-1"></i> Driver: {{ craft.assigned_driver.name|default:"Unassigned" }}</div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form action="{% url 'dashboard_portal:seacraft_dashboard' %}" method="post">
+                        {% csrf_token %}
+                        <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
+                        <input type="hidden" name="action_type" value="SCHEDULE_MAINTENANCE">
+                        <div class="modal-body">
+                            <p class="mb-3 text-sm text-gray-600">When the due date arrives, this vessel will move into maintenance and be unavailable for dispatch.</p>
+                            <label for="{{ craft.schedule_form.maintenance_type.id_for_label }}" class="mb-1 block font-semibold">{{ craft.schedule_form.maintenance_type.label }}</label>
+                            {{ craft.schedule_form.maintenance_type }}
+                            <label for="{{ craft.schedule_form.due_date.id_for_label }}" class="mb-1 mt-3 block font-semibold">{{ craft.schedule_form.due_date.label }}</label>
+                            {{ craft.schedule_form.due_date }}
+                            <label for="{{ craft.schedule_form.description.id_for_label }}" class="mb-1 mt-3 block">{{ craft.schedule_form.description.label }}</label>
+                            {{ craft.schedule_form.description }}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Save maintenance schedule</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
 
     
 {% if messages %}
@@ -200,11 +289,45 @@
     </div>
 {% endif %} 
 
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="{% static 'fleet/js/dashboard_views.js' %}"></script>
 <script src="{% static 'fleet/js/dashboard_print.js' %}"></script>
 <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const fleetTabs = document.querySelectorAll('[data-sea-fleet-tab]');
+        function selectFleetTab(selectedTab) {
+            const selectedGroup = selectedTab.dataset.seaFleetTab;
+            fleetTabs.forEach(function(tab) {
+                const isSelected = tab === selectedTab;
+                tab.classList.toggle('active', isSelected);
+                tab.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+            });
+            document.querySelectorAll('[data-sea-fleet-group]').forEach(function(row) {
+                row.hidden = row.dataset.seaFleetGroup !== selectedGroup;
+            });
+        }
+        fleetTabs.forEach(function(tab) {
+            tab.addEventListener('click', function() {
+                selectFleetTab(tab);
+            });
+        });
+        if (fleetTabs.length) {
+            selectFleetTab(document.querySelector('[data-sea-fleet-tab="maintenance"]'));
+        }
+        const alertContainer = document.getElementById("alert-container");
+        if (alertContainer) {
+            setTimeout(function() {
+                alertContainer.style.opacity = '0';
+                alertContainer.style.transform = 'translate(50px, 20px)';
+                setTimeout(function() {
+                    alertContainer.remove();
+                }, 500);
+            }, 4000);
+        }
+    });
+
     // Interceptor to prompt operator for validation remarks
-    function captureDisposalRemarks(form) {
+    window.captureDisposalRemarks = function(form) {
         const vehicleId = form.querySelector('input[name="vehicle_id"]').value;
         const remarksInput = document.getElementById('remarks_input_' + vehicleId);
         
@@ -221,22 +344,7 @@
         
         remarksInput.value = userRemarks;
         return true;
-    }
-
-    document.addEventListener("DOMContentLoaded", function() {
-        const alertContainer = document.getElementById("alert-container");
-        
-        if (alertContainer) {
-            setTimeout(function() {
-                alertContainer.style.opacity = '0';
-                alertContainer.style.transform = 'translate(50px, 20px)';
-                
-                setTimeout(function() {
-                    alertContainer.remove();
-                }, 500); 
-            }, 4000);
-        }
-    });
+    };
 </script>
 
     <footer class="bg-gray-50 text-center py-4 border-t border-gray-200 text-xs text-gray-500 font-medium tracking-wide">

@@ -1,6 +1,9 @@
+from datetime import timedelta
+
 from django.contrib.auth.models import Group, User
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from .models import Driver, Vehicle, VehicleType
 
@@ -34,6 +37,11 @@ class LoginViewTests(TestCase):
         response = self.client.get(reverse('dashboard_portal:logistics_dashboard'))
 
         self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="logisticsMenuDrawer"')
+        self.assertContains(response, 'data-menu-action="operators"')
+        self.assertContains(response, 'data-menu-action="add-operator"')
+        self.assertContains(response, 'data-menu-action="add-asset"')
+        self.assertContains(response, 'data-menu-action="print"')
 
 
 class DispatchDashboardAlignmentTests(TestCase):
@@ -63,6 +71,140 @@ class DispatchDashboardAlignmentTests(TestCase):
             vehicle_type=vehicle_type,
             **kwargs,
         )
+
+    def test_logistics_can_add_land_drivers_and_seacraft_operators(self):
+        self.client.force_login(self.logistics_user)
+        for name, license_number in (
+            ('New Land Driver', 'LAND-100'),
+            ('New Sea Operator', 'MAR-100'),
+        ):
+            with self.subTest(operator=name):
+                response = self.client.post(
+                    reverse('dashboard_portal:logistics_dashboard'),
+                    {
+                        'action': 'add_operator',
+                        'operator_type': 'SEA' if license_number.startswith('MAR-') else 'LAND',
+                        'name': name,
+                        'license_number': license_number,
+                        'phone_number': '555-0100',
+                    },
+                )
+                self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+                operator = Driver.objects.get(name=name)
+                self.assertEqual(operator.license_number, license_number)
+                self.assertEqual(operator.phone_number, '555-0100')
+
+    def test_logistics_rejects_operator_type_that_conflicts_with_license(self):
+        self.client.force_login(self.logistics_user)
+        response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'add_operator',
+                'operator_type': 'LAND',
+                'name': 'Misclassified Operator',
+                'license_number': 'MAR-200',
+            },
+            follow=True,
+        )
+
+        self.assertContains(response, 'A seacraft license cannot be registered as a land driver.')
+        self.assertFalse(Driver.objects.filter(name='Misclassified Operator').exists())
+
+    def test_operator_assignments_are_saved_together_from_one_floating_form(self):
+        land_vehicle = self.create_vehicle(
+            model_name='Bulk Assigned Land Vehicle',
+            plate_number='LAND-BULK-01',
+            vehicle_type=self.land_type,
+        )
+        seacraft = self.create_vehicle(
+            model_name='Bulk Assigned Seacraft',
+            plate_number='SEA-BULK-01',
+            vehicle_type=self.marine_type,
+        )
+        land_driver = Driver.objects.create(
+            name='Bulk Assignment Land Driver',
+            license_number='LAND-200',
+        )
+        self.client.force_login(self.logistics_user)
+
+        dashboard = self.client.get(reverse('dashboard_portal:logistics_dashboard'))
+        self.assertContains(dashboard, 'id="operatorAssignmentModal"')
+        self.assertContains(dashboard, 'name="action" value="bulk_set_drivers"')
+        self.assertEqual(dashboard.content.decode().count('Save All Assignments'), 1)
+        self.assertNotContains(dashboard, 'id="operatorAssignmentDrawer"')
+
+        response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'bulk_set_drivers',
+                f'operator_land_{land_vehicle.id}': str(land_driver.id),
+                f'operator_sea_{seacraft.id}': str(self.operator.id),
+            },
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+        land_vehicle.refresh_from_db()
+        seacraft.refresh_from_db()
+        self.assertEqual(land_vehicle.assigned_driver, land_driver)
+        self.assertEqual(seacraft.assigned_driver, self.operator)
+
+    def test_bulk_operator_assignment_rejects_duplicate_driver_without_partial_save(self):
+        first_craft = self.create_vehicle(
+            model_name='First Bulk Seacraft',
+            plate_number='SEA-BULK-02',
+            vehicle_type=self.marine_type,
+        )
+        second_craft = self.create_vehicle(
+            model_name='Second Bulk Seacraft',
+            plate_number='SEA-BULK-03',
+            vehicle_type=self.maritime_type,
+        )
+        self.client.force_login(self.logistics_user)
+
+        response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'bulk_set_drivers',
+                f'operator_sea_{first_craft.id}': str(self.operator.id),
+                f'operator_sea_{second_craft.id}': str(self.operator.id),
+            },
+            follow=True,
+        )
+
+        self.assertContains(response, 'Each operator can be assigned to only one fleet asset.')
+        first_craft.refresh_from_db()
+        second_craft.refresh_from_db()
+        self.assertIsNone(first_craft.assigned_driver)
+        self.assertIsNone(second_craft.assigned_driver)
+
+    def test_seacraft_dispatch_can_add_only_maritime_operators(self):
+        self.client.force_login(self.seacraft_user)
+        response = self.client.post(
+            reverse('dashboard_portal:seacraft_dispatch'),
+            {
+                'action': 'add_operator',
+                'name': 'Dispatch Added Operator',
+                'license_number': 'MAR-300',
+                'phone_number': '555-0300',
+            },
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:seacraft_dispatch'))
+        operator = Driver.objects.get(name='Dispatch Added Operator')
+        self.assertTrue(operator.license_number.startswith('MAR-'))
+
+        response = self.client.post(
+            reverse('dashboard_portal:seacraft_dispatch'),
+            {
+                'action': 'add_operator',
+                'name': 'Invalid Dispatch Driver',
+                'license_number': 'LAND-300',
+            },
+            follow=True,
+        )
+
+        self.assertContains(response, 'Seacraft operator licenses must start with MAR-.')
+        self.assertFalse(Driver.objects.filter(name='Invalid Dispatch Driver').exists())
 
     def test_maritime_asset_classification_matches_across_dashboards(self):
         marine_craft = self.create_vehicle(
@@ -99,6 +241,45 @@ class DispatchDashboardAlignmentTests(TestCase):
         for craft in (marine_craft, maritime_craft):
             self.assertContains(dispatch_response, craft.model_name)
         self.assertNotContains(dispatch_response, land_vehicle.model_name)
+
+    def test_seacraft_dispatch_uses_logistics_status_tabs(self):
+        operational = self.create_vehicle(
+            model_name='Tabbed Operational Craft',
+            plate_number='SEA-TAB-01',
+            vehicle_type=self.marine_type,
+        )
+        deployed = self.create_vehicle(
+            model_name='Tabbed Deployed Craft',
+            plate_number='SEA-TAB-02',
+            vehicle_type=self.marine_type,
+            status='DEPLOYED',
+        )
+        maintenance = self.create_vehicle(
+            model_name='Tabbed Maintenance Craft',
+            plate_number='SEA-TAB-03',
+            vehicle_type=self.marine_type,
+            status='MAINTENANCE',
+        )
+        pending_disposal = self.create_vehicle(
+            model_name='Tabbed Disposal Craft',
+            plate_number='SEA-TAB-04',
+            vehicle_type=self.marine_type,
+            status='PENDING_DISPOSAL',
+        )
+
+        self.client.force_login(self.seacraft_user)
+        response = self.client.get(reverse('dashboard_portal:seacraft_dispatch'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['sea_standby'], [operational])
+        self.assertEqual(response.context['sea_deployed'], [deployed])
+        self.assertEqual(
+            response.context['sea_maintenance'],
+            [maintenance, pending_disposal],
+        )
+        self.assertContains(response, 'Standby &amp; Operational (1)')
+        self.assertContains(response, 'Active Deployments (1)')
+        self.assertContains(response, 'Maintenance &amp; Disposal (2)')
 
     def test_dispatch_deployment_details_are_visible_in_logistics_dashboard(self):
         craft = self.create_vehicle(
@@ -290,6 +471,16 @@ class MechanicMaintenanceWorkflowTests(TestCase):
     def post_as_mechanic(self, vehicle, action, *, is_seacraft=False, **data):
         user = self.sea_mechanic if is_seacraft else self.land_mechanic
         url_name = 'dashboard_portal:seacraft_dashboard' if is_seacraft else 'dashboard_portal:repairman_dashboard'
+        if action == 'REPORT_FAULT' and 'fault_description' in data:
+            data[f'fault-{vehicle.pk}-fault_description'] = data.pop('fault_description')
+            data[f'fault-{vehicle.pk}-fault_type'] = data.pop('fault_type', 'engine')
+        if action == 'COMPLETE_MAINTENANCE' and 'maintenance_checklist' in data:
+            data[f'checklist-{vehicle.pk}-maintenance_checklist'] = data.pop('maintenance_checklist')
+        if action == 'SCHEDULE_MAINTENANCE':
+            data[f'schedule-{vehicle.pk}-maintenance_type'] = data.pop('maintenance_type', 'TIRES')
+            data[f'schedule-{vehicle.pk}-due_date'] = data.pop('due_date')
+            if 'description' in data:
+                data[f'schedule-{vehicle.pk}-description'] = data.pop('description')
         self.client.force_login(user)
         return self.client.post(
             reverse(url_name),
@@ -321,7 +512,166 @@ class MechanicMaintenanceWorkflowTests(TestCase):
                 )
                 vehicle.refresh_from_db()
                 self.assertEqual(vehicle.status, 'MAINTENANCE')
-                self.assertEqual(vehicle.maintenance_problem, 'Engine makes a loud grinding noise.')
+                self.assertEqual(
+                    vehicle.maintenance_problem,
+                    'Engine: Engine makes a loud grinding noise.',
+                )
+
+    def test_fault_report_requires_a_valid_issue_type(self):
+        self.post_as_mechanic(
+            self.land_vehicle,
+            'REPORT_FAULT',
+            fault_type='unsupported',
+            fault_description='A fault was reported.',
+        )
+
+        self.land_vehicle.refresh_from_db()
+        self.assertEqual(self.land_vehicle.status, 'OPERATIONAL')
+        self.assertEqual(self.land_vehicle.maintenance_problem, '')
+
+    def test_mechanic_can_schedule_future_preventive_maintenance(self):
+        due_date = timezone.localdate() + timedelta(days=30)
+        response = self.post_as_mechanic(
+            self.land_vehicle,
+            'SCHEDULE_MAINTENANCE',
+            maintenance_type='OIL',
+            due_date=due_date.isoformat(),
+            description='Use the approved engine oil.',
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:repairman_dashboard'))
+        self.land_vehicle.refresh_from_db()
+        self.assertEqual(self.land_vehicle.status, 'OPERATIONAL')
+        self.assertEqual(self.land_vehicle.scheduled_maintenance_type, 'OIL')
+        self.assertEqual(self.land_vehicle.scheduled_maintenance_date, due_date)
+        self.assertEqual(
+            self.land_vehicle.scheduled_maintenance_description,
+            'Use the approved engine oil.',
+        )
+
+    def test_overdue_scheduled_maintenance_moves_vehicle_to_maintenance(self):
+        driver = Driver.objects.create(name='Scheduled Service Driver')
+        self.land_vehicle.status = 'DEPLOYED'
+        self.land_vehicle.assigned_driver = driver
+        self.land_vehicle.deployment_location = 'Test location'
+        self.land_vehicle.deployment_purpose = 'Test deployment'
+        self.land_vehicle.scheduled_maintenance_type = 'TIRES'
+        self.land_vehicle.scheduled_maintenance_date = timezone.localdate() - timedelta(days=1)
+        self.land_vehicle.scheduled_maintenance_description = 'Replace front tires.'
+        self.land_vehicle.save()
+        self.client.force_login(self.land_mechanic)
+
+        response = self.client.get(reverse('dashboard_portal:repairman_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.land_vehicle.refresh_from_db()
+        self.assertEqual(self.land_vehicle.status, 'MAINTENANCE')
+        self.assertEqual(
+            self.land_vehicle.maintenance_problem,
+            'Scheduled Tire replacement is due. Replace front tires.',
+        )
+        self.assertIsNone(self.land_vehicle.assigned_driver)
+        self.assertIsNone(self.land_vehicle.deployment_location)
+        self.assertIsNone(self.land_vehicle.scheduled_maintenance_date)
+
+    def test_overdue_vehicle_cannot_be_deployed_from_logistics(self):
+        logistics_group = Group.objects.create(name='Logistics Officers')
+        logistics_user = User.objects.create_user(
+            username='fleet_logistics',
+            password='SecurePass123!',
+        )
+        logistics_user.groups.add(logistics_group)
+        self.land_vehicle.scheduled_maintenance_type = 'OIL'
+        self.land_vehicle.scheduled_maintenance_date = timezone.localdate()
+        self.land_vehicle.save()
+        self.client.force_login(logistics_user)
+
+        response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'deploy_vehicle',
+                'vehicle_id': self.land_vehicle.id,
+            },
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+        self.land_vehicle.refresh_from_db()
+        self.assertEqual(self.land_vehicle.status, 'MAINTENANCE')
+
+    def test_past_maintenance_schedule_date_is_rejected(self):
+        self.post_as_mechanic(
+            self.land_vehicle,
+            'SCHEDULE_MAINTENANCE',
+            maintenance_type='OIL',
+            due_date=(timezone.localdate() - timedelta(days=1)).isoformat(),
+        )
+
+        self.land_vehicle.refresh_from_db()
+        self.assertEqual(self.land_vehicle.status, 'OPERATIONAL')
+        self.assertIsNone(self.land_vehicle.scheduled_maintenance_date)
+
+    def test_seacraft_mechanic_can_schedule_and_trigger_due_maintenance(self):
+        due_date = timezone.localdate() + timedelta(days=1)
+        self.post_as_mechanic(
+            self.seacraft,
+            'SCHEDULE_MAINTENANCE',
+            is_seacraft=True,
+            maintenance_type='OTHER',
+            due_date=due_date.isoformat(),
+            description='Inspect bilge pump.',
+        )
+
+        self.seacraft.refresh_from_db()
+        self.assertEqual(self.seacraft.status, 'OPERATIONAL')
+        self.assertEqual(self.seacraft.scheduled_maintenance_type, 'OTHER')
+        self.assertEqual(self.seacraft.scheduled_maintenance_date, due_date)
+
+        self.seacraft.scheduled_maintenance_date = timezone.localdate()
+        self.seacraft.save(update_fields=['scheduled_maintenance_date'])
+        self.client.force_login(self.sea_mechanic)
+        response = self.client.get(reverse('dashboard_portal:seacraft_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.seacraft.refresh_from_db()
+        self.assertEqual(self.seacraft.status, 'MAINTENANCE')
+        self.assertEqual(
+            self.seacraft.maintenance_problem,
+            'Scheduled Other maintenance is due. Inspect bilge pump.',
+        )
+
+    def test_deployed_assets_show_mission_location_and_click_to_call_driver(self):
+        for vehicle, is_seacraft, phone_number in (
+            (self.land_vehicle, False, '+639171234567'),
+            (self.seacraft, True, '+639189876543'),
+        ):
+            with self.subTest(asset=vehicle.model_name):
+                driver = Driver.objects.create(
+                    name=f'{vehicle.model_name} Operator',
+                    phone_number=phone_number,
+                    license_number='MAR-100' if is_seacraft else 'LAND-100',
+                )
+                vehicle.status = 'DEPLOYED'
+                vehicle.assigned_driver = driver
+                vehicle.deployment_location = 'Honda Bay'
+                vehicle.deployment_purpose = 'Emergency Search & Rescue'
+                vehicle.save()
+
+                user = self.sea_mechanic if is_seacraft else self.land_mechanic
+                dashboard = (
+                    'dashboard_portal:seacraft_dashboard'
+                    if is_seacraft else 'dashboard_portal:repairman_dashboard'
+                )
+                self.client.force_login(user)
+                response = self.client.get(reverse(dashboard))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'Location:')
+                self.assertContains(response, 'Honda Bay')
+                self.assertContains(response, 'Mission detail:')
+                self.assertContains(response, 'Emergency Search &amp; Rescue')
+                self.assertContains(response, f'Driver: {driver.name}')
+                self.assertContains(response, f'href="tel:{phone_number}"')
+                self.assertContains(response, phone_number)
 
     def test_reporting_a_deployed_fault_clears_dispatch_assignment(self):
         driver = Driver.objects.create(name='Assigned Land Operator')
@@ -363,14 +713,6 @@ class MechanicMaintenanceWorkflowTests(TestCase):
                 self.assertEqual(vehicle.maintenance_problem, 'User reported a fault.')
 
     def test_complete_checklist_returns_land_and_sea_assets_to_service(self):
-        checklist_values = (
-            'repairs_complete',
-            'safety_systems_checked',
-            'fluids_battery_tires_checked',
-            'propulsion_fuel_hull_checked',
-            'test_run_passed',
-            'no_unresolved_issues',
-        )
         for vehicle, is_seacraft in (
             (self.land_vehicle, False),
             (self.seacraft, True),
@@ -383,7 +725,13 @@ class MechanicMaintenanceWorkflowTests(TestCase):
                     vehicle,
                     'COMPLETE_MAINTENANCE',
                     is_seacraft=is_seacraft,
-                    maintenance_checklist=checklist_values,
+                    maintenance_checklist=[
+                        'repairs_complete',
+                        'safety_systems_checked',
+                        'test_run_passed',
+                        'no_unresolved_issues',
+                        'propulsion_fuel_hull_checked' if is_seacraft else 'fluids_battery_tires_checked',
+                    ],
                 )
                 vehicle.refresh_from_db()
                 self.assertEqual(vehicle.status, 'OPERATIONAL')
@@ -424,18 +772,42 @@ class MechanicMaintenanceWorkflowTests(TestCase):
         self.assertEqual(self.seacraft.maintenance_problem, 'User reported a fault.')
 
     def test_mechanic_pages_show_fault_prompt_and_no_status_toggles(self):
-        for user, vehicle, url_name in (
-            (self.land_mechanic, self.land_vehicle, 'dashboard_portal:repairman_dashboard'),
-            (self.sea_mechanic, self.seacraft, 'dashboard_portal:seacraft_dashboard'),
+        for user, vehicle, url_name, is_seacraft in (
+            (self.land_mechanic, self.land_vehicle, 'dashboard_portal:repairman_dashboard', False),
+            (self.sea_mechanic, self.seacraft, 'dashboard_portal:seacraft_dashboard', True),
         ):
             with self.subTest(asset=vehicle.model_name):
                 self.client.force_login(user)
                 response = self.client.get(reverse(url_name))
-                self.assertContains(response, 'What fault or symptom did the user report?')
+                self.assertContains(response, 'Description of issue')
+                if not is_seacraft:
+                    self.assertContains(response, 'Operational Fleet')
+                    self.assertContains(response, 'Maintenance')
+                    self.assertContains(response, 'Issue type')
+                    self.assertContains(response, 'Driver:')
+                    self.assertContains(response, 'data-land-fleet-tab="maintenance"')
+                    self.assertContains(response, 'data-land-fleet-group="operational" hidden')
+                else:
+                    self.assertContains(response, 'data-sea-fleet-tab="maintenance"')
+                    self.assertContains(response, 'data-sea-fleet-group="operational" hidden')
+                    self.assertContains(response, 'Schedule other maintenance')
+                    self.assertContains(response, 'Issue type')
+                    self.assertContains(response, 'Driver: Unassigned')
+                if not is_seacraft:
+                    self.assertContains(response, f'data-bs-target="#landMaintenanceModal{vehicle.id}"')
+                    self.assertContains(response, 'modal-dialog modal-dialog-centered modal-lg')
+                else:
+                    self.assertContains(response, f'data-bs-target="#seaMaintenanceModal{vehicle.id}"')
+                    self.assertContains(response, 'modal-dialog modal-dialog-centered modal-lg')
                 vehicle.status = 'MAINTENANCE'
                 vehicle.maintenance_problem = 'User-reported test fault.'
                 vehicle.save()
                 response = self.client.get(reverse(url_name))
                 self.assertContains(response, 'Return-to-service checklist')
                 self.assertContains(response, 'User-reported test fault.')
+                if not is_seacraft:
+                    self.assertContains(response, 'data-land-fleet-group="maintenance">')
+                else:
+                    self.assertContains(response, 'data-sea-fleet-group="maintenance">')
+                self.assertContains(response, 'class="maintenance-checklist"')
                 self.assertNotContains(response, 'STATUS_TOGGLE')

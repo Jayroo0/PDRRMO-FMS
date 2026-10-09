@@ -13,6 +13,9 @@
         body { background-color: #FFFFFF; }
         .nav-header { background-color: #1A365D; border-bottom: 4px solid #0EA5E9; }
         .table-theme th { background-color: #0EA5E9 !important; color: white !important; }
+        .dashboard-view-list[data-view-type="table"] tbody tr[data-land-fleet-group][hidden] {
+            display: none !important;
+        }
         
     </style>
     <link rel="stylesheet" href="{% static 'fleet/css/dashboard_theme.css' %}">
@@ -53,10 +56,24 @@
 
     <div class="container-fluid px-4">
         
-        <h3 class="fw-bold mb-3" style="color: #1A365D;">Land Vehicle Work Orders</h3>
+        <h3 class="fw-bold mb-3" style="color: #1A365D;">Land Assets Mechanical Workbench</h3>
+        <ul class="nav nav-tabs mb-3" role="tablist" aria-label="Land fleet status">
+            <li class="nav-item" role="presentation">
+                <button type="button" class="nav-link active" id="land-maintenance-tab" role="tab" aria-controls="land-fleet-table" aria-selected="true" data-land-fleet-tab="maintenance">
+                    <i class="fa-solid fa-screwdriver-wrench me-1"></i> Maintenance
+                    <span class="badge bg-danger ms-1">{{ maintenance_count }}</span>
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button type="button" class="nav-link" id="land-operational-tab" role="tab" aria-controls="land-fleet-table" aria-selected="false" data-land-fleet-tab="operational">
+                    <i class="fa-solid fa-truck-fast me-1"></i> Operational Fleet
+                    <span class="badge bg-primary ms-1">{{ operational_count }}</span>
+                </button>
+            </li>
+        </ul>
         <div class="card shadow-sm border-0">
             <div class="card-body p-0 border bg-white rounded dashboard-view-list" data-view-list="land-work-orders" data-view-type="table" data-view-default="grid">
-                <table class="table table-hover align-middle mb-0 asset-grid-table">
+                <table id="land-fleet-table" class="table table-hover align-middle mb-0 asset-grid-table">
                     <thead class="table-theme">
                         <tr>
                             <th>Equipment Unit</th>
@@ -67,7 +84,7 @@
                     </thead>
                     <tbody>
                         {% for vehicle in vehicles %}
-                        <tr>
+                        <tr data-land-fleet-group="{% if vehicle.status == 'MAINTENANCE' or vehicle.status == 'PENDING_DISPOSAL' %}maintenance{% else %}operational{% endif %}"{% if vehicle.status == 'OPERATIONAL' or vehicle.status == 'DEPLOYED' %} hidden{% endif %}>
                             <td class="fw-bold text-dark">
                                 {{ vehicle.model_name }} 
                                 <span class="badge bg-secondary font-monospace text-uppercase ms-1">{{ vehicle.vehicle_type.name }}</span>
@@ -79,6 +96,24 @@
                                     <div class="border px-3 py-1.5 rounded d-inline-flex align-items-center gap-2 bg-light text-dark fw-semibold" style="min-width: 160px; height: 38px; font-size: 0.875rem;">
                                         <span style="height: 10px; width: 10px; background-color: #0284C7; border-radius: 50%; display: inline-block;"></span>
                                         DEPLOYED
+                                    </div>
+                                    <div class="small mt-2 text-primary-emphasis">
+                                        <div><strong>Location:</strong> {{ vehicle.deployment_location|default:"Not specified" }}</div>
+                                        <div><strong>Mission detail:</strong> {{ vehicle.deployment_purpose|default:"Not specified" }}</div>
+                                        {% if vehicle.deployment_time %}
+                                            <div><strong>Deployed:</strong> {{ vehicle.deployment_time|date:"M j, Y, P" }}</div>
+                                        {% endif %}
+                                        {% if vehicle.assigned_driver %}
+                                            <div class="mt-1"><strong>Driver:</strong> {{ vehicle.assigned_driver.name }}</div>
+                                            {% if vehicle.assigned_driver.phone_number %}
+                                                <a class="btn btn-sm btn-outline-primary mt-1" href="tel:{{ vehicle.assigned_driver.phone_number }}">
+                                                    <i class="fa-solid fa-phone me-1"></i> Call driver
+                                                    <span class="ms-1">{{ vehicle.assigned_driver.phone_number }}</span>
+                                                </a>
+                                            {% else %}
+                                                <div class="small text-muted mt-1">No driver phone number recorded.</div>
+                                            {% endif %}
+                                        {% endif %}
                                     </div>
                                 {% elif vehicle.status == 'MAINTENANCE' %}
                                     <div class="border px-3 py-1.5 rounded d-inline-flex align-items-center gap-2 bg-light text-dark fw-semibold" style="min-width: 160px; height: 38px; font-size: 0.875rem;">
@@ -104,79 +139,32 @@
                                         OPERATIONAL
                                     </div>
                                 {% endif %}
+                                {% if vehicle.scheduled_maintenance_date %}
+                                    <div class="small mt-2 text-warning-emphasis">
+                                        <strong>{{ vehicle.get_scheduled_maintenance_type_display }} due:</strong>
+                                        {{ vehicle.scheduled_maintenance_date|date:"M j, Y" }}
+                                        {% if vehicle.scheduled_maintenance_description %}<div>{{ vehicle.scheduled_maintenance_description }}</div>{% endif %}
+                                    </div>
+                                {% endif %}
                             </td>
                             
                             <td>
                                 <div class="dashboard-row-actions">
-                                    {% if vehicle.status == 'MAINTENANCE' %}
-                                        <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="border rounded bg-light p-3 mb-2">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                            <input type="hidden" name="action_type" value="COMPLETE_MAINTENANCE">
-                                            <fieldset>
-                                                <legend class="fs-6 fw-bold">Return-to-service checklist</legend>
-                                                <p class="small text-muted">Check every item only after verifying it. All checks are required.</p>
-                                                {% for value, label in maintenance_checklist %}
-                                                    <div class="form-check mb-1">
-                                                        <input class="form-check-input" type="checkbox" name="maintenance_checklist" value="{{ value }}" id="land_{{ vehicle.id }}_{{ value }}" required>
-                                                        <label class="form-check-label" for="land_{{ vehicle.id }}_{{ value }}">{{ label }}</label>
-                                                    </div>
-                                                {% endfor %}
-                                            </fieldset>
-                                            <button type="submit" class="btn btn-sm btn-success mt-2">
-                                                <i class="fa-solid fa-clipboard-check me-1"></i> Complete checks &amp; return to service
-                                            </button>
-                                        </form>
-                                        <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="m-0" onsubmit="return captureWorkshopDisposalRemarks(this);">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                            <input type="hidden" name="action_type" value="FLAG_DISPOSAL">
-                                            <input type="hidden" name="disposal_remarks" id="workshop_remarks_input_{{ vehicle.id }}" value="">
-                                            
-                                            <button type="submit" class="btn btn-sm btn-outline-danger d-inline-flex align-items-center gap-1 fw-bold px-2.5 py-1.5 uppercase text-xs tracking-wider cursor-pointer shadow-sm">
-                                                <i class="fa-solid fa-trash-can"></i>
-                                                <span>Move For Disposal</span>
-                                            </button>
-                                        </form>
-                                    {% elif vehicle.status == 'PENDING_DISPOSAL' %}
-                                        <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="land-disposal-update">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                            <input type="hidden" name="action_type" value="UPDATE_DISPOSAL_REASON">
-                                            <input
-                                                type="text"
-                                                name="disposal_remarks"
-                                                class="form-control form-control-sm"
-                                                value="{{ vehicle.disposal_reason }}"
-                                                aria-label="Updated disposal reason for {{ vehicle.model_name }}"
-                                                placeholder="Enter disposal reason"
-                                                required
-                                            >
-                                            <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">
-                                                <i class="fa-solid fa-pen-to-square"></i> Update Reason
-                                            </button>
-                                        </form>
-                                        <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="m-0" onsubmit="return confirm('Cancel the disposal request and return this asset to maintenance?');">
-                                            {% csrf_token %}
-                                            <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                            <input type="hidden" name="action_type" value="UNDO_DISPOSAL">
-                                            <button type="submit" class="btn btn-sm btn-outline-warning d-inline-flex align-items-center gap-1 fw-bold px-2.5 py-1.5 uppercase text-xs tracking-wider shadow-sm">
-                                                <i class="fa-solid fa-rotate-left"></i>
-                                                <span>Undo Disposal</span>
-                                            </button>
-                                        </form>
-                                    {% elif vehicle.status == 'OPERATIONAL' or vehicle.status == 'DEPLOYED' %}
-                                        <form method="POST" action="{% url 'dashboard_portal:repairman_dashboard' %}" class="border rounded bg-light p-3">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                        <input type="hidden" name="action_type" value="REPORT_FAULT">
-                                        <label for="land_fault_{{ vehicle.id }}" class="form-label fw-bold">What fault or symptom did the user report?</label>
-                                        <textarea id="land_fault_{{ vehicle.id }}" name="fault_description" class="form-control" rows="3" maxlength="1000" placeholder="Describe the issue and when it occurs." required></textarea>
-                                        <div class="form-text mb-2">A fault description is required before this unit can enter maintenance.</div>
-                                        <button type="submit" class="btn btn-sm btn-danger">
-                                            <i class="fa-solid fa-screwdriver-wrench me-1"></i> Record fault &amp; move to maintenance
+                                    {% if vehicle.status == 'MAINTENANCE' or vehicle.status == 'PENDING_DISPOSAL' or vehicle.status == 'OPERATIONAL' or vehicle.status == 'DEPLOYED' %}
+                                        <button type="button" class="btn btn-sm {% if vehicle.status == 'MAINTENANCE' %}btn-success{% elif vehicle.status == 'PENDING_DISPOSAL' %}btn-outline-warning{% else %}btn-danger{% endif %}" data-bs-toggle="modal" data-bs-target="#landMaintenanceModal{{ vehicle.id }}">
+                                            {% if vehicle.status == 'MAINTENANCE' %}
+                                                <i class="fa-solid fa-clipboard-check me-1"></i> Open return checklist
+                                            {% elif vehicle.status == 'PENDING_DISPOSAL' %}
+                                                <i class="fa-solid fa-clipboard-list me-1"></i> Manage disposal request
+                                            {% else %}
+                                                <i class="fa-solid fa-screwdriver-wrench me-1"></i> Report fault
+                                            {% endif %}
                                         </button>
-                                    </form>
+                                        {% if vehicle.status == 'OPERATIONAL' %}
+                                            <button type="button" class="btn btn-sm btn-outline-primary mt-1" data-bs-toggle="modal" data-bs-target="#landScheduleModal{{ vehicle.id }}">
+                                                <i class="fa-solid fa-calendar-plus me-1"></i> Schedule other maintenance
+                                            </button>
+                                        {% endif %}
                                     {% else %}
                                         <span class="text-muted small">No mechanic action is available for this status.</span>
                                     {% endif %}
@@ -189,6 +177,140 @@
             </div>
         </div>
     </div>
+
+    {% for vehicle in vehicles %}
+        {% if vehicle.status == 'MAINTENANCE' or vehicle.status == 'PENDING_DISPOSAL' or vehicle.status == 'OPERATIONAL' or vehicle.status == 'DEPLOYED' %}
+        <div class="modal fade" id="landMaintenanceModal{{ vehicle.id }}" tabindex="-1" aria-labelledby="landMaintenanceModalLabel{{ vehicle.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-5 fw-bold" id="landMaintenanceModalLabel{{ vehicle.id }}">Maintenance action</h2>
+                            <div class="small text-muted">{{ vehicle.model_name }} · {{ vehicle.plate_number }}</div>
+                            <div class="small fw-semibold text-primary">
+                                <i class="fa-solid fa-user me-1"></i>
+                                Driver: {{ vehicle.assigned_driver.name|default:"Unassigned" }}
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        {% if vehicle.status == 'MAINTENANCE' %}
+                            <div class="alert alert-warning">
+                                <strong>User-reported fault:</strong>
+                                {{ vehicle.maintenance_problem|default:"No fault description recorded." }}
+                            </div>
+                            <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                <input type="hidden" name="action_type" value="COMPLETE_MAINTENANCE">
+                                <fieldset>
+                                    <legend class="fs-6 fw-bold">Return-to-service checklist</legend>
+                                    <p class="small text-muted">Verify every item before returning this vehicle to service.</p>
+                                    {{ vehicle.checklist_form.maintenance_checklist }}
+                                </fieldset>
+                                <button type="submit" class="btn btn-success mt-3">
+                                    <i class="fa-solid fa-clipboard-check me-1"></i> Complete checks &amp; return to service
+                                </button>
+                            </form>
+                            <hr>
+                            <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" onsubmit="return captureWorkshopDisposalRemarks(this);">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                <input type="hidden" name="action_type" value="FLAG_DISPOSAL">
+                                <input type="hidden" name="disposal_remarks" id="workshop_remarks_input_{{ vehicle.id }}" value="">
+                                <button type="submit" class="btn btn-outline-danger">
+                                    <i class="fa-solid fa-trash-can me-1"></i> Move for disposal review
+                                </button>
+                            </form>
+                        {% elif vehicle.status == 'PENDING_DISPOSAL' %}
+                            <div class="alert alert-warning">This vehicle is pending disposal review. Update or cancel the request below.</div>
+                            <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="mb-3">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                <input type="hidden" name="action_type" value="UPDATE_DISPOSAL_REASON">
+                                <label for="land_disposal_reason_{{ vehicle.id }}" class="form-label fw-bold">Disposal reason</label>
+                                <input id="land_disposal_reason_{{ vehicle.id }}" type="text" name="disposal_remarks" class="form-control mb-2" value="{{ vehicle.disposal_reason }}" placeholder="Enter disposal reason" required>
+                                <button type="submit" class="btn btn-outline-primary">Update reason</button>
+                            </form>
+                            <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" onsubmit="return confirm('Cancel the disposal request and return this asset to maintenance?');">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                <input type="hidden" name="action_type" value="UNDO_DISPOSAL">
+                                <button type="submit" class="btn btn-outline-warning">Undo disposal request</button>
+                            </form>
+                        {% else %}
+                            <p class="text-muted">Record the fault reported by the end-user. The vehicle will enter maintenance after the fault is submitted.</p>
+                            <form method="POST" action="{% url 'dashboard_portal:repairman_dashboard' %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                <input type="hidden" name="action_type" value="REPORT_FAULT">
+                                <label for="{{ vehicle.fault_form.fault_type.id_for_label }}" class="form-label fw-bold">{{ vehicle.fault_form.fault_type.label }}</label>
+                                {{ vehicle.fault_form.fault_type }}
+                                <label for="{{ vehicle.fault_form.fault_description.id_for_label }}" class="form-label fw-bold mt-3">{{ vehicle.fault_form.fault_description.label }}</label>
+                                {{ vehicle.fault_form.fault_description }}
+                                <button type="submit" class="btn btn-danger mt-3">
+                                    <i class="fa-solid fa-screwdriver-wrench me-1"></i> Record fault &amp; move to maintenance
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
+
+    {% for vehicle in vehicles %}
+        {% if vehicle.status == 'OPERATIONAL' %}
+        <div class="modal fade" id="landScheduleModal{{ vehicle.id }}" tabindex="-1" aria-labelledby="landScheduleModalLabel{{ vehicle.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title fs-5 fw-bold" id="landScheduleModalLabel{{ vehicle.id }}">Schedule preventive maintenance</h2>
+                            <div class="small text-muted">{{ vehicle.model_name }} · {{ vehicle.plate_number }}</div>
+                            <div class="small fw-semibold text-primary">
+                                <i class="fa-solid fa-user me-1"></i>
+                                Driver: {{ vehicle.assigned_driver.name|default:"Unassigned" }}
+                            </div>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                        <input type="hidden" name="action_type" value="SCHEDULE_MAINTENANCE">
+                        <div class="modal-body">
+                            <p class="small text-muted">When the due date arrives, this vehicle will automatically move to Maintenance and be unavailable for dispatch.</p>
+                            <div class="mb-3">
+                                <label for="{{ vehicle.schedule_form.maintenance_type.id_for_label }}" class="form-label fw-bold">{{ vehicle.schedule_form.maintenance_type.label }}</label>
+                                {{ vehicle.schedule_form.maintenance_type }}
+                            </div>
+                            <div class="mb-3">
+                                <label for="{{ vehicle.schedule_form.due_date.id_for_label }}" class="form-label fw-bold">{{ vehicle.schedule_form.due_date.label }}</label>
+                                {{ vehicle.schedule_form.due_date }}
+                            </div>
+                            <div>
+                                <label for="{{ vehicle.schedule_form.description.id_for_label }}" class="form-label">{{ vehicle.schedule_form.description.label }}</label>
+                                {{ vehicle.schedule_form.description }}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa-solid fa-calendar-check me-1"></i> Save maintenance schedule
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    {% endfor %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -219,6 +341,27 @@
     <script src="{% static 'fleet/js/dashboard_print.js' %}"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
+            const fleetTabs = document.querySelectorAll('[data-land-fleet-tab]');
+            function selectFleetTab(selectedTab) {
+                const selectedGroup = selectedTab.dataset.landFleetTab;
+                fleetTabs.forEach(function(tab) {
+                    const isSelected = tab === selectedTab;
+                    tab.classList.toggle('active', isSelected);
+                    tab.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+                });
+                document.querySelectorAll('[data-land-fleet-group]').forEach(function(row) {
+                    row.hidden = row.dataset.landFleetGroup !== selectedGroup;
+                });
+            }
+            fleetTabs.forEach(function(tab) {
+                tab.addEventListener('click', function() {
+                    selectFleetTab(tab);
+                });
+            });
+            if (fleetTabs.length) {
+                selectFleetTab(document.querySelector('[data-land-fleet-tab="maintenance"]'));
+            }
+
             const alertContainer = document.getElementById("alert-container");
             
             if (alertContainer) {

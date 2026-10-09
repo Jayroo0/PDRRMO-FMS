@@ -8,6 +8,14 @@ from django.db import transaction
 from django.db.models import Case, When, Value, IntegerField, Q
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
+from .forms import (
+    LAND_MAINTENANCE_CHECKLIST,
+    SEACRAFT_MAINTENANCE_CHECKLIST,
+    MaintenanceChecklistForm,
+    MaintenanceFaultForm,
+    OperatorDetailsForm,
+    ScheduledMaintenanceForm,
+)
 from .models import Vehicle, VehicleType, Driver, VehicleAsset, OperatorProfile
 
 # =========================================================================
@@ -100,27 +108,54 @@ def seacraft_vehicle_type_filter():
     )
 
 
-LAND_MAINTENANCE_CHECKLIST = (
-    ('repairs_complete', 'Required repairs are complete'),
-    ('safety_systems_checked', 'Safety systems have been checked'),
-    ('fluids_battery_tires_checked', 'Fluids, battery, and tires have been checked'),
-    ('test_run_passed', 'Operational test run passed'),
-    ('no_unresolved_issues', 'No unresolved safety or operating issues remain'),
-)
-
-SEACRAFT_MAINTENANCE_CHECKLIST = (
-    ('repairs_complete', 'Required repairs are complete'),
-    ('safety_systems_checked', 'Safety equipment has been checked'),
-    ('propulsion_fuel_hull_checked', 'Engine, fuel, bilge, and hull have been checked'),
-    ('test_run_passed', 'Sea trial passed'),
-    ('no_unresolved_issues', 'No unresolved safety or operating issues remain'),
-)
-
-
 def maintenance_checklist_for_vehicle(vehicle):
     if vehicle.vehicle_type and vehicle.vehicle_type.name.upper() in {'MARINE', 'MARITIME'}:
         return SEACRAFT_MAINTENANCE_CHECKLIST
     return LAND_MAINTENANCE_CHECKLIST
+
+
+def move_overdue_vehicles_to_maintenance(request):
+    due_vehicles = Vehicle.objects.filter(
+        scheduled_maintenance_date__lte=timezone.localdate(),
+        status__in=['OPERATIONAL', 'DEPLOYED'],
+    ).select_related('vehicle_type', 'assigned_driver')
+
+    for vehicle in due_vehicles:
+        due_type = vehicle.get_scheduled_maintenance_type_display()
+        details = (
+            f" {vehicle.scheduled_maintenance_description}"
+            if vehicle.scheduled_maintenance_description else ''
+        )
+        vehicle.status = 'MAINTENANCE'
+        vehicle.maintenance_problem = f"Scheduled {due_type} is due.{details}"
+        vehicle.assigned_driver = None
+        vehicle.deployment_location = None
+        vehicle.deployment_purpose = None
+        vehicle.deployment_time = None
+        vehicle.scheduled_maintenance_type = ''
+        vehicle.scheduled_maintenance_date = None
+        vehicle.scheduled_maintenance_description = ''
+        vehicle.save(update_fields=[
+            'status',
+            'maintenance_problem',
+            'assigned_driver',
+            'deployment_location',
+            'deployment_purpose',
+            'deployment_time',
+            'scheduled_maintenance_type',
+            'scheduled_maintenance_date',
+            'scheduled_maintenance_description',
+        ])
+        log_action_to_admin(
+            request,
+            vehicle,
+            CHANGE,
+            f"Scheduled maintenance due: {due_type}{details}. Vehicle moved to maintenance.",
+        )
+        messages.warning(
+            request,
+            f"{vehicle.model_name} is now in maintenance because scheduled {due_type.lower()} is due.",
+        )
 
 
 def handle_mechanic_maintenance_action(request, vehicle):
@@ -131,16 +166,21 @@ def handle_mechanic_maintenance_action(request, vehicle):
             messages.error(request, f"{vehicle.model_name} must be operational or deployed before a new maintenance fault can be reported.")
             return
 
-        fault_description = request.POST.get('fault_description', '').strip()
-        if not fault_description:
-            messages.error(request, "Describe the user-reported fault before moving this asset to maintenance.")
-            return
-        if len(fault_description) > 1000:
-            messages.error(request, "The fault description must be 1,000 characters or fewer.")
+        form = MaintenanceFaultForm(
+            request.POST,
+            prefix=f'fault-{vehicle.pk}',
+        )
+        if not form.is_valid():
+            for errors in form.errors.values():
+                for error in errors:
+                    messages.error(request, error)
             return
 
         vehicle.status = 'MAINTENANCE'
-        vehicle.maintenance_problem = fault_description
+        vehicle.maintenance_problem = (
+            f"{form.cleaned_data['fault_type'].replace('_', ' ').title()}: "
+            f"{form.cleaned_data['fault_description']}"
+        )
         vehicle.assigned_driver = None
         vehicle.deployment_location = None
         vehicle.deployment_purpose = None
@@ -150,7 +190,7 @@ def handle_mechanic_maintenance_action(request, vehicle):
             request,
             vehicle,
             CHANGE,
-            f"Reported maintenance fault for {vehicle.model_name}: {fault_description}",
+            f"Reported maintenance fault for {vehicle.model_name}: {vehicle.maintenance_problem}",
         )
         messages.success(request, f"Fault recorded. {vehicle.model_name} is now in maintenance.")
         return
@@ -160,11 +200,15 @@ def handle_mechanic_maintenance_action(request, vehicle):
             messages.error(request, f"{vehicle.model_name} must be in maintenance before it can be returned to service.")
             return
 
-        checklist = maintenance_checklist_for_vehicle(vehicle)
-        checked_items = set(request.POST.getlist('maintenance_checklist'))
-        required_items = {item[0] for item in checklist}
-        if not required_items.issubset(checked_items):
-            messages.error(request, "Complete every maintenance checklist item before returning this asset to operational status.")
+        form = MaintenanceChecklistForm(
+            request.POST,
+            checklist=maintenance_checklist_for_vehicle(vehicle),
+            prefix=f'checklist-{vehicle.pk}',
+        )
+        if not form.is_valid():
+            for errors in form.errors.values():
+                for error in errors:
+                    messages.error(request, error)
             return
 
         vehicle.status = 'OPERATIONAL'
@@ -177,6 +221,41 @@ def handle_mechanic_maintenance_action(request, vehicle):
             f"Completed maintenance checklist and returned {vehicle.model_name} to operational status.",
         )
         messages.success(request, f"Checklist complete. {vehicle.model_name} is operational.")
+        return
+
+    if action_type == 'SCHEDULE_MAINTENANCE':
+        if vehicle.status != 'OPERATIONAL':
+            messages.error(request, f"{vehicle.model_name} must be operational before maintenance can be scheduled.")
+            return
+
+        form = ScheduledMaintenanceForm(
+            request.POST,
+            prefix=f'schedule-{vehicle.pk}',
+        )
+        if not form.is_valid():
+            for errors in form.errors.values():
+                for error in errors:
+                    messages.error(request, error)
+            return
+
+        vehicle.scheduled_maintenance_type = form.cleaned_data['maintenance_type']
+        vehicle.scheduled_maintenance_date = form.cleaned_data['due_date']
+        vehicle.scheduled_maintenance_description = form.cleaned_data['description']
+        vehicle.save(update_fields=[
+            'scheduled_maintenance_type',
+            'scheduled_maintenance_date',
+            'scheduled_maintenance_description',
+        ])
+        log_action_to_admin(
+            request,
+            vehicle,
+            CHANGE,
+            f"Scheduled {vehicle.get_scheduled_maintenance_type_display()} for {vehicle.scheduled_maintenance_date}: {vehicle.scheduled_maintenance_description}",
+        )
+        messages.success(
+            request,
+            f"{vehicle.get_scheduled_maintenance_type_display()} scheduled for {vehicle.scheduled_maintenance_date.strftime('%b %d, %Y')}.",
+        )
         return
 
     messages.error(request, "Unsupported mechanic action. Use the fault report or maintenance checklist.")
@@ -294,6 +373,8 @@ def repairman_dashboard(request):
         messages.error(request, "Access restricted to authorized Repair Technicians.")
         return redirect('homepage')
 
+    move_overdue_vehicles_to_maintenance(request)
+
     if request.method == 'POST':
         vehicle_id = request.POST.get('vehicle_id')
         action_type = request.POST.get('action_type')
@@ -352,6 +433,8 @@ def repairman_dashboard(request):
 
     vehicles = Vehicle.objects.exclude(
         seacraft_vehicle_type_filter()
+    ).exclude(
+        status__in=['ARCHIVED', 'DISPOSED']
     ).select_related(
         'vehicle_type', 'assigned_driver'
     ).order_by(
@@ -367,9 +450,24 @@ def repairman_dashboard(request):
     )
     vehicles = add_disposal_reasons(vehicles)
     
+    for vehicle in vehicles:
+        vehicle.fault_form = MaintenanceFaultForm(prefix=f'fault-{vehicle.pk}')
+        vehicle.checklist_form = MaintenanceChecklistForm(
+            checklist=LAND_MAINTENANCE_CHECKLIST,
+            prefix=f'checklist-{vehicle.pk}',
+        )
+        vehicle.schedule_form = ScheduledMaintenanceForm(prefix=f'schedule-{vehicle.pk}')
+
     return render(request, 'fleet/repairman_dashboard.html', {
         'vehicles': vehicles,
-        'maintenance_checklist': LAND_MAINTENANCE_CHECKLIST,
+        'maintenance_count': sum(
+            vehicle.status in {'MAINTENANCE', 'PENDING_DISPOSAL'}
+            for vehicle in vehicles
+        ),
+        'operational_count': sum(
+            vehicle.status in {'OPERATIONAL', 'DEPLOYED'}
+            for vehicle in vehicles
+        ),
     })
 
 
@@ -388,6 +486,8 @@ def seacraft_dashboard(request):
     if not is_authorized:
         messages.error(request, "Access restricted to authorized Maritime Operators.")
         return redirect('homepage')
+
+    move_overdue_vehicles_to_maintenance(request)
 
     if request.method == 'POST':
         vehicle_id = request.POST.get('vehicle_id')
@@ -464,9 +564,24 @@ def seacraft_dashboard(request):
     )
     vehicles = add_disposal_reasons(vehicles)
 
+    for vehicle in vehicles:
+        vehicle.fault_form = MaintenanceFaultForm(prefix=f'fault-{vehicle.pk}')
+        vehicle.checklist_form = MaintenanceChecklistForm(
+            checklist=SEACRAFT_MAINTENANCE_CHECKLIST,
+            prefix=f'checklist-{vehicle.pk}',
+        )
+        vehicle.schedule_form = ScheduledMaintenanceForm(prefix=f'schedule-{vehicle.pk}')
+
     return render(request, 'fleet/seacraft_dashboard.html', {
         'vehicles': vehicles,
-        'maintenance_checklist': SEACRAFT_MAINTENANCE_CHECKLIST,
+        'maintenance_count': sum(
+            vehicle.status in {'MAINTENANCE', 'PENDING_DISPOSAL'}
+            for vehicle in vehicles
+        ),
+        'operational_count': sum(
+            vehicle.status in {'OPERATIONAL', 'DEPLOYED'}
+            for vehicle in vehicles
+        ),
     })
 
 
@@ -481,9 +596,146 @@ def logistics_dashboard(request):
         messages.error(request, "Access restricted to Logistics Depot management accounts.")
         return redirect('homepage')
 
+    move_overdue_vehicles_to_maintenance(request)
+
     if request.method == 'POST':
         action = request.POST.get('action')
         vehicle_id = request.POST.get('vehicle_id')
+
+        if action == 'add_operator':
+            form = OperatorDetailsForm(request.POST)
+            if form.is_valid():
+                operator = form.save()
+                log_action_to_admin(
+                    request,
+                    operator,
+                    ADDITION,
+                    f"Registered {form.cleaned_data['operator_type'].lower()} operator {operator.name}.",
+                )
+                messages.success(request, f"Operator details for {operator.name} were added.")
+            else:
+                for errors in form.errors.values():
+                    for error in errors:
+                        messages.error(request, error)
+            return redirect('dashboard_portal:logistics_dashboard')
+
+        if action == 'bulk_set_drivers':
+            assignment_prefixes = {
+                'operator_land_': False,
+                'operator_sea_': True,
+            }
+            assignments = []
+            for field_name, driver_id in request.POST.items():
+                prefix = next(
+                    (prefix for prefix in assignment_prefixes if field_name.startswith(prefix)),
+                    None,
+                )
+                if prefix is None:
+                    continue
+
+                vehicle_id_value = field_name[len(prefix):]
+                if not vehicle_id_value.isdecimal():
+                    messages.error(request, "Invalid fleet asset in operator assignment form.")
+                    return redirect('dashboard_portal:logistics_dashboard')
+
+                vehicle = Vehicle.objects.select_related('vehicle_type').filter(
+                    pk=vehicle_id_value,
+                ).first()
+                if vehicle is None or (
+                    assignment_prefixes[prefix]
+                    != (vehicle.vehicle_type.name.strip().casefold() in {'marine', 'maritime'})
+                ):
+                    messages.error(request, "An asset in the operator assignment form could not be verified.")
+                    return redirect('dashboard_portal:logistics_dashboard')
+                if vehicle.status in {'DEPLOYED', 'PENDING_DISPOSAL', 'ARCHIVED'}:
+                    messages.error(request, f"Operator assignments cannot be changed while '{vehicle.model_name}' is {vehicle.get_status_display().lower()}.")
+                    return redirect('dashboard_portal:logistics_dashboard')
+                assignments.append((vehicle, driver_id.strip()))
+
+            if not assignments:
+                messages.error(request, "There are no editable fleet operator assignments to save.")
+                return redirect('dashboard_portal:logistics_dashboard')
+
+            assignment_vehicle_ids = {vehicle.pk for vehicle, _ in assignments}
+            selected_driver_ids = [
+                driver_id for _, driver_id in assignments if driver_id
+            ]
+            if len(selected_driver_ids) != len(set(selected_driver_ids)):
+                messages.error(request, "Each operator can be assigned to only one fleet asset.")
+                return redirect('dashboard_portal:logistics_dashboard')
+
+            resolved_assignments = []
+            releasable_vehicle_ids = set()
+            for vehicle, driver_id in assignments:
+                driver = None
+                if driver_id:
+                    driver = Driver.objects.filter(pk=driver_id, is_active=True).first()
+                    if driver is None or not vehicle_type_matches_operator(vehicle, driver):
+                        messages.error(request, f"Select an active operator qualified for '{vehicle.model_name}'.")
+                        return redirect('dashboard_portal:logistics_dashboard')
+
+                    current_assignment = Vehicle.objects.filter(
+                        assigned_driver=driver,
+                    ).exclude(pk=vehicle.pk).first()
+                    if current_assignment and current_assignment.pk not in assignment_vehicle_ids:
+                        if current_assignment.status in {'MAINTENANCE', 'PENDING_DISPOSAL'}:
+                            releasable_vehicle_ids.add(current_assignment.pk)
+                        else:
+                            messages.error(
+                                request,
+                                f"Personnel '{driver.name}' is already assigned to active fleet asset '{current_assignment.model_name}'.",
+                            )
+                            return redirect('dashboard_portal:logistics_dashboard')
+                resolved_assignments.append((vehicle, driver))
+
+            changed_assignments = [
+                (vehicle, driver)
+                for vehicle, driver in resolved_assignments
+                if vehicle.assigned_driver_id != (driver.pk if driver else None)
+            ]
+            changed_vehicle_ids = {vehicle.pk for vehicle, _ in changed_assignments}
+
+            with transaction.atomic():
+                locked_vehicles = {
+                    vehicle.pk: vehicle
+                    for vehicle in Vehicle.objects.select_for_update().filter(
+                        pk__in=changed_vehicle_ids | releasable_vehicle_ids,
+                    )
+                }
+                for vehicle_id_to_clear in changed_vehicle_ids | releasable_vehicle_ids:
+                    vehicle_to_clear = locked_vehicles[vehicle_id_to_clear]
+                    if vehicle_to_clear.assigned_driver_id:
+                        vehicle_to_clear.assigned_driver = None
+                        vehicle_to_clear.save(update_fields=['assigned_driver'])
+
+                for vehicle, driver in changed_assignments:
+                    vehicle = locked_vehicles[vehicle.pk]
+                    vehicle.assigned_driver = driver
+                    vehicle.save(update_fields=['assigned_driver'])
+
+                for vehicle_id_to_clear in releasable_vehicle_ids:
+                    released_vehicle = locked_vehicles[vehicle_id_to_clear]
+                    log_action_to_admin(
+                        request,
+                        released_vehicle,
+                        CHANGE,
+                        "Released operator during bulk personnel assignment.",
+                    )
+
+                for vehicle, driver in changed_assignments:
+                    operator_name = driver.name if driver else 'Unassigned'
+                    log_action_to_admin(
+                        request,
+                        vehicle,
+                        CHANGE,
+                        f"Set personnel operator to {operator_name} via bulk assignment.",
+                    )
+
+            if changed_assignments or releasable_vehicle_ids:
+                messages.success(request, "All personnel operator assignments were saved.")
+            else:
+                messages.info(request, "No operator assignments were changed.")
+            return redirect('dashboard_portal:logistics_dashboard')
 
         # ACTION A: DEPLOY VEHICLE (Requires Location, Purpose, Time, & Operator Validation)
         if action == 'deploy_vehicle':
@@ -695,6 +947,7 @@ def logistics_dashboard(request):
         'sea_drivers': sea_drivers,
         'assigned_driver_ids': assigned_driver_ids,
         'assigned_driver_map': assigned_driver_map,
+        'operator_form': OperatorDetailsForm(),
     }
     return render(request, 'fleet/logistics_dashboard.html', context)
 
@@ -713,8 +966,30 @@ def seacraft_dispatch_view(request):
         messages.error(request, "Access restricted to authorized Maritime Dispatchers.")
         return redirect("homepage")
 
+    move_overdue_vehicles_to_maintenance(request)
+
     if request.method == "POST":
         action = request.POST.get("action") or request.POST.get("action_type")
+        if action == "add_operator":
+            form = OperatorDetailsForm(
+                request.POST,
+                allowed_operator_type='SEA',
+            )
+            if form.is_valid():
+                operator = form.save()
+                log_action_to_admin(
+                    request,
+                    operator,
+                    ADDITION,
+                    f"Registered seacraft operator {operator.name}.",
+                )
+                messages.success(request, f"Seacraft operator details for {operator.name} were added.")
+            else:
+                for errors in form.errors.values():
+                    for error in errors:
+                        messages.error(request, error)
+            return redirect("dashboard_portal:seacraft_dispatch")
+
         vehicle = get_object_or_404(
             Vehicle.objects.filter(seacraft_vehicle_type_filter()),
             id=request.POST.get("vehicle_id"),
@@ -901,13 +1176,23 @@ def seacraft_dispatch_view(request):
         )
     )
     sea_crafts = add_disposal_reasons(sea_crafts)
+    sea_standby = [craft for craft in sea_crafts if craft.status == "OPERATIONAL"]
+    sea_deployed = [craft for craft in sea_crafts if craft.status == "DEPLOYED"]
+    sea_maintenance = [
+        craft for craft in sea_crafts
+        if craft.status in {"MAINTENANCE", "PENDING_DISPOSAL"}
+    ]
 
     return render(
         request,
         "fleet/seacraft_dispatch.html",
         {
-            "sea_crafts": sea_crafts, 
+            "sea_crafts": sea_crafts,
+            "sea_standby": sea_standby,
+            "sea_deployed": sea_deployed,
+            "sea_maintenance": sea_maintenance,
             "drivers": sea_drivers,
             "assigned_driver_ids": assigned_driver_ids,
+            "operator_form": OperatorDetailsForm(allowed_operator_type='SEA'),
         },
     )

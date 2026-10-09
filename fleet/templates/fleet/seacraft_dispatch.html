@@ -110,6 +110,10 @@
                 <button type="button" class="dashboard-print-trigger" aria-label="Print dashboard">
                     <i class="fa-solid fa-print" aria-hidden="true"></i> Print
                 </button>
+                <button type="button" class="btn btn-sm btn-outline-light fw-bold"
+                        data-bs-toggle="modal" data-bs-target="#addSeacraftOperatorModal">
+                    <i class="fa-solid fa-user-plus me-1"></i> Add Seacraft Operator
+                </button>
                 <span class="text-white-50 small d-none d-md-inline">
                     <i class="fa-solid fa-tower-cell text-success me-1"></i> Connected to Dispatch Server
                 </span>
@@ -148,13 +152,13 @@
                 
                 <ul class="nav nav-tabs custom-tabs border-0 px-3" id="seacraftTab" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="all-crafts-tab" data-bs-toggle="tab" data-bs-target="#all-crafts" type="button" role="tab" aria-controls="all-crafts" aria-selected="true"><i class="fa-solid fa-layer-group me-1"></i> All Sea Crafts</button>
+                        <button class="nav-link active" id="standby-crafts-tab" data-bs-toggle="tab" data-bs-target="#standby-crafts" type="button" role="tab" aria-controls="standby-crafts" aria-selected="true"><i class="fa-solid fa-warehouse me-1"></i> Standby &amp; Operational ({{ sea_standby|length }})</button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="deployed-crafts-tab" data-bs-toggle="tab" data-bs-target="#deployed-crafts" type="button" role="tab" aria-controls="deployed-crafts" aria-selected="false"><i class="fa-solid fa-location-dot me-1"></i> Active Deployments</button>
+                        <button class="nav-link" id="deployed-crafts-tab" data-bs-toggle="tab" data-bs-target="#deployed-crafts" type="button" role="tab" aria-controls="deployed-crafts" aria-selected="false"><i class="fa-solid fa-location-dot me-1"></i> Active Deployments ({{ sea_deployed|length }})</button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="standby-crafts-tab" data-bs-toggle="tab" data-bs-target="#standby-crafts" type="button" role="tab" aria-controls="standby-crafts" aria-selected="false"><i class="fa-solid fa-warehouse me-1"></i> Standby & Maintenance</button>
+                        <button class="nav-link" id="maintenance-crafts-tab" data-bs-toggle="tab" data-bs-target="#maintenance-crafts" type="button" role="tab" aria-controls="maintenance-crafts" aria-selected="false"><i class="fa-solid fa-screwdriver-wrench me-1"></i> Maintenance &amp; Disposal ({{ sea_maintenance|length }})</button>
                     </li>
                 </ul>
             </div>
@@ -162,8 +166,8 @@
             <div class="card-body p-0 border bg-white rounded-bottom table-responsive">
                 <div class="tab-content" id="seacraftTabContent">
                     
-                    <!-- TAB 1: ALL SEA CRAFTS -->
-                    <div class="tab-pane fade show active dashboard-view-list" id="all-crafts" data-view-list="dispatch-all-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="all-crafts-tab">
+                    <!-- TAB 1: STANDBY & OPERATIONAL -->
+                    <div class="tab-pane fade show active dashboard-view-list" id="standby-crafts" data-view-list="dispatch-standby-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="standby-crafts-tab">
                         <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
                                 <tr>
@@ -175,7 +179,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for craft in sea_crafts %}
+                                {% for craft in sea_standby %}
                                 <tr>
                                     <td>
                                         <strong>{{ craft.model_name }}</strong>
@@ -289,7 +293,7 @@
                                     </td>
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="5" class="text-center py-4 text-muted fw-semibold">No marine operations fleet assets registered in system mapping rows.</td></tr>
+                                <tr><td colspan="5" class="text-center py-4 text-muted fw-semibold">No seacrafts are currently operational and ready for dispatch.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -308,8 +312,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for craft in sea_crafts %}
-                                    {% if craft.status == 'DEPLOYED' %}
+                                {% for craft in sea_deployed %}
                                     <tr>
                                         <td>
                                             <strong>{{ craft.model_name }}</strong>
@@ -336,14 +339,16 @@
                                             </form>
                                         </td>
                                     </tr>
-                                    {% endif %}
                                 {% endfor %}
+                                {% if not sea_deployed %}
+                                <tr><td colspan="5" class="text-center py-4 text-muted fw-semibold">No active seacraft deployments.</td></tr>
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>
 
-                    <!-- TAB 3: STANDBY & MAINTENANCE -->
-                    <div class="tab-pane fade dashboard-view-list" id="standby-crafts" data-view-list="dispatch-standby-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="standby-crafts-tab">
+                    <!-- TAB 3: MAINTENANCE & DISPOSAL -->
+                    <div class="tab-pane fade dashboard-view-list" id="maintenance-crafts" data-view-list="dispatch-maintenance-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="maintenance-crafts-tab">
                         <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
                                 <tr>
@@ -355,8 +360,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for craft in sea_crafts %}
-                                    {% if craft.status == 'OPERATIONAL' or craft.status == 'MAINTENANCE' or craft.status == 'PENDING_DISPOSAL' %}
+                                {% for craft in sea_maintenance %}
                                     <tr>
                                         <td>
                                             <strong>{{ craft.model_name }}</strong>
@@ -453,8 +457,10 @@
                                             {% endif %}
                                         </td>
                                     </tr>
-                                    {% endif %}
                                 {% endfor %}
+                                {% if not sea_maintenance %}
+                                <tr><td colspan="5" class="text-center py-4 text-muted fw-semibold">No seacrafts are in maintenance or pending disposal.</td></tr>
+                                {% endif %}
                             </tbody>
                         </table>
                     </div>
@@ -464,6 +470,42 @@
         </div>
 
     </main>
+
+    <div class="modal fade" id="addSeacraftOperatorModal" tabindex="-1" aria-labelledby="addSeacraftOperatorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background-color: #1A365D;">
+                    <h5 class="modal-title fw-bold" id="addSeacraftOperatorModalLabel">
+                        <i class="fa-solid fa-ship text-info me-2"></i>Add Seacraft Operator
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="{% url 'dashboard_portal:seacraft_dispatch' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_operator">
+                    <div class="modal-body">
+                        <p class="text-muted small">Add an operator to the maritime dispatch list. Use the operator's maritime license number beginning with <strong>MAR-</strong>.</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.name.id_for_label }}">{{ operator_form.name.label }}</label>
+                            {{ operator_form.name }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.license_number.id_for_label }}">{{ operator_form.license_number.label }}</label>
+                            {{ operator_form.license_number }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.phone_number.id_for_label }}">{{ operator_form.phone_number.label }}</label>
+                            {{ operator_form.phone_number }}
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> Save Operator</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- MODAL: DEPLOYMENT DETAILS INPUT -->
     <div class="modal fade" id="deployVehicleModal" tabindex="-1" aria-hidden="true">

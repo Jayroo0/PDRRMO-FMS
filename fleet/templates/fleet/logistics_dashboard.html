@@ -59,36 +59,50 @@
             <span> PDRRMO Logistics Command Portal</span>
         </span>
         
-        <div class="d-flex align-items-center gap-2">
-            <button type="button" class="dashboard-print-trigger" aria-label="Print dashboard">
-                <i class="fa-solid fa-print" aria-hidden="true"></i> Print
+        <div class="d-flex align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-light fw-bold px-3"
+                    data-bs-toggle="offcanvas" data-bs-target="#logisticsMenuDrawer"
+                    aria-controls="logisticsMenuDrawer" aria-label="Open logistics menu">
+                <i class="fa-solid fa-bars me-1"></i> Menu
             </button>
-            <button type="button" class="btn btn-sm btn-teal fw-bold px-3" 
-                    data-bs-toggle="offcanvas" 
-                    data-bs-target="#operatorAssignmentDrawer">
-                <i class="fa-solid fa-user-gear me-1"></i> Personnel Operator Assignment
-            </button>
-            <button type="button" class="btn btn-sm btn-orange fw-bold px-3 text-white" 
-                    id="onboard-trigger-btn"
-                    data-bs-toggle="modal" 
-                    data-bs-target="#addVehicleModal">
-                <i class="fa-solid fa-plus me-1"></i> Onboard New Fleet Asset
-            </button>
-            
-            {% if user.is_authenticated %}
-            <span class="text-white small fw-bold bg-dark bg-opacity-25 px-2 py-1 rounded-2 border border-secondary-subtle">
-                <i class="fa-solid fa-user text-info me-1"></i> {{ user.username }}
-            </span>
-            {% endif %}
-            
-            <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="d-inline m-0">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-outline-light fw-bold px-3">
-                    <i class="fa-solid fa-right-from-bracket me-1"></i> Log Out
-                </button>
-            </form>
         </div>
     </nav>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="logisticsMenuDrawer" aria-labelledby="logisticsMenuDrawerLabel">
+        <div class="offcanvas-header text-white" style="background-color: #1A365D;">
+            <div>
+                <h5 class="offcanvas-title fw-bold mb-1" id="logisticsMenuDrawerLabel">
+                    <i class="fa-solid fa-bars-staggered text-info me-2"></i>Logistics Menu
+                </h5>
+                {% if user.is_authenticated %}
+                <div class="small text-white-50"><i class="fa-solid fa-user me-1"></i>{{ user.username }}</div>
+                {% endif %}
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close menu"></button>
+        </div>
+        <div class="offcanvas-body d-flex flex-column gap-2 bg-light">
+            <button type="button" class="btn btn-outline-secondary text-start fw-semibold logistics-menu-action" data-menu-action="print">
+                <i class="fa-solid fa-print me-2"></i>Print Dashboard
+            </button>
+            <button type="button" class="btn btn-teal text-white text-start fw-semibold logistics-menu-action" data-menu-action="operators">
+                <i class="fa-solid fa-user-gear me-2"></i>Personnel Operator Assignment
+            </button>
+            <button type="button" class="btn btn-outline-primary text-start fw-semibold logistics-menu-action" data-menu-action="add-operator">
+                <i class="fa-solid fa-user-plus me-2"></i>Add Driver / Operator
+            </button>
+            <button type="button" class="btn btn-orange text-white text-start fw-semibold logistics-menu-action" data-menu-action="add-asset">
+                <i class="fa-solid fa-plus me-2"></i>Onboard New Fleet Asset
+            </button>
+            <div class="mt-auto pt-3 border-top">
+                <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger fw-bold w-100 text-start">
+                        <i class="fa-solid fa-right-from-bracket me-2"></i>Log Out
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <div class="container-fluid px-4">
         {% if messages %}
@@ -468,15 +482,59 @@
         </div>
     </div>
 
-    <!-- MENU DRAWER: PERSONNEL OPERATOR ASSIGNMENT -->
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="operatorAssignmentDrawer" aria-labelledby="operatorDrawerLabel" style="min-width: 420px;">
-        <div class="offcanvas-header text-white" style="background-color: #1A365D;">
-            <h5 class="offcanvas-title fw-bold" id="operatorDrawerLabel">
-                <i class="fa-solid fa-user-gear text-info me-2"></i> Personnel Operator Assignment
-            </h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    <div class="modal fade" id="addOperatorModal" tabindex="-1" aria-labelledby="addOperatorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background-color: #1A365D;">
+                    <h5 class="modal-title fw-bold" id="addOperatorModalLabel">
+                        <i class="fa-solid fa-user-plus text-info me-2"></i>Add Driver / Operator Details
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="{% url 'dashboard_portal:logistics_dashboard' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_operator">
+                    <div class="modal-body">
+                        <p class="text-muted small">Add a qualified operator to the Logistics personnel list. Seacraft licenses must start with <strong>MAR-</strong>.</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.operator_type.id_for_label }}">{{ operator_form.operator_type.label }}</label>
+                            {{ operator_form.operator_type }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.name.id_for_label }}">{{ operator_form.name.label }}</label>
+                            {{ operator_form.name }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.license_number.id_for_label }}">{{ operator_form.license_number.label }}</label>
+                            {{ operator_form.license_number }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.phone_number.id_for_label }}">{{ operator_form.phone_number.label }}</label>
+                            {{ operator_form.phone_number }}
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> Save Operator</button>
+                    </div>
+                </form>
+            </div>
         </div>
-        <div class="offcanvas-body bg-light">
+    </div>
+
+    <div class="modal fade" id="operatorAssignmentModal" tabindex="-1" aria-labelledby="operatorAssignmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background-color: #1A365D;">
+                    <h5 class="modal-title fw-bold" id="operatorAssignmentModalLabel">
+                        <i class="fa-solid fa-user-gear text-info me-2"></i>Personnel Operator Assignment
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="bulk_set_drivers">
+                    <div class="modal-body bg-light">
             <div class="alert alert-info small border-info d-flex align-items-center gap-2 mb-3">
                 <i class="fa-solid fa-triangle-exclamation fs-5"></i>
                 <div><strong>Standard Operating Rule:</strong> Personnel operators attached to maintenance units are available for temporary dispatch. Upon fleet repair completion, operators can be re-assigned back to their original unit.</div>
@@ -497,11 +555,7 @@
                                     <strong class="text-dark small">{{ vehicle.model_name }}</strong>
                                     <span class="badge bg-secondary font-monospace">{{ vehicle.plate_number }}</span>
                                 </div>
-                                <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="d-flex gap-2">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="set_driver">
-                                    <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                    <select name="driver_id" class="form-select form-select-sm" {% if vehicle.status == 'DEPLOYED' or vehicle.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
+                                    <select name="operator_land_{{ vehicle.id }}" id="operator-land-{{ vehicle.id }}" class="form-select form-select-sm" {% if vehicle.status == 'DEPLOYED' or vehicle.status == 'PENDING_DISPOSAL' or vehicle.status == 'ARCHIVED' %}disabled{% endif %}>
                                         <option value="">-- Standby / Unassigned --</option>
                                         {% for driver in land_drivers %}
                                             {% if vehicle.assigned_driver and vehicle.assigned_driver.id == driver.id %}
@@ -513,8 +567,6 @@
                                             {% endif %}
                                         {% endfor %}
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-primary" {% if vehicle.status == 'DEPLOYED' or vehicle.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>Save</button>
-                                </form>
                             </div>
                             {% empty %}
                             <div class="small text-muted">No land vehicles registered.</div>
@@ -537,11 +589,7 @@
                                     <strong class="text-dark small">{{ craft.model_name }}</strong>
                                     <span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span>
                                 </div>
-                                <form action="{% url 'dashboard_portal:logistics_dashboard' %}" method="post" class="d-flex gap-2">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="action" value="set_driver">
-                                    <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                    <select name="driver_id" class="form-select form-select-sm" {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
+                                    <select name="operator_sea_{{ craft.id }}" id="operator-sea-{{ craft.id }}" class="form-select form-select-sm" {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' or craft.status == 'ARCHIVED' %}disabled{% endif %}>
                                         <option value="">-- Standby / Unassigned --</option>
                                         {% for driver in sea_drivers %}
                                             {% if craft.assigned_driver and craft.assigned_driver.id == driver.id %}
@@ -553,13 +601,21 @@
                                             {% endif %}
                                         {% endfor %}
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-primary" {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>Save</button>
-                                </form>
                             </div>
                             {% empty %}
                             <div class="small text-muted">No seacrafts registered.</div>
                             {% endfor %}
                         </div>
+                    </div>
+                </div>
+                            </div>
+                            <div class="modal-footer bg-white">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary fw-bold">
+                                    <i class="fa-solid fa-floppy-disk me-1"></i>Save All Assignments
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -807,6 +863,41 @@
                     }
                 });
             });
+
+            const logisticsMenuDrawer = document.getElementById('logisticsMenuDrawer');
+            if (logisticsMenuDrawer) {
+                logisticsMenuDrawer.querySelectorAll('[data-menu-action]').forEach(button => {
+                    button.addEventListener('click', function () {
+                        logisticsMenuDrawer.dataset.pendingAction = this.dataset.menuAction;
+                        bootstrap.Offcanvas.getOrCreateInstance(logisticsMenuDrawer).hide();
+                    });
+                });
+
+                logisticsMenuDrawer.addEventListener('hidden.bs.offcanvas', function () {
+                    const action = logisticsMenuDrawer.dataset.pendingAction;
+                    delete logisticsMenuDrawer.dataset.pendingAction;
+
+                    if (action === 'print') {
+                        window.print();
+                        return;
+                    }
+
+                    const modalTargets = {
+                        'add-operator': '#addOperatorModal',
+                        'add-asset': '#addVehicleModal'
+                    };
+                    if (modalTargets[action]) {
+                        const modalElement = document.querySelector(modalTargets[action]);
+                        bootstrap.Modal.getOrCreateInstance(modalElement).show();
+                        return;
+                    }
+
+                    if (action === 'operators') {
+                        const assignmentModal = document.getElementById('operatorAssignmentModal');
+                        bootstrap.Modal.getOrCreateInstance(assignmentModal).show();
+                    }
+                });
+            }
 
             document.querySelectorAll('form').forEach(form => {
                 form.addEventListener('submit', function () {

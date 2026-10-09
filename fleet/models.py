@@ -70,6 +70,12 @@ class VehicleAssignment(models.Model):
 
 
 class Vehicle(models.Model):
+    SCHEDULED_MAINTENANCE_CHOICES = [
+        ('TIRES', 'Tire replacement'),
+        ('OIL', 'Oil replacement'),
+        ('OTHER', 'Other maintenance'),
+    ]
+
     STATUS_CHOICES = [
         ('OPERATIONAL', 'Operational'),
         ('MAINTENANCE', 'Maintenance'),
@@ -85,6 +91,13 @@ class Vehicle(models.Model):
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='OPERATIONAL')
 
     maintenance_problem = models.CharField(max_length=1000, blank=True)
+    scheduled_maintenance_type = models.CharField(
+        max_length=20,
+        choices=SCHEDULED_MAINTENANCE_CHOICES,
+        blank=True,
+    )
+    scheduled_maintenance_date = models.DateField(null=True, blank=True)
+    scheduled_maintenance_description = models.CharField(max_length=500, blank=True)
     assigned_driver = models.OneToOneField(
         Driver,
         on_delete=models.SET_NULL,
