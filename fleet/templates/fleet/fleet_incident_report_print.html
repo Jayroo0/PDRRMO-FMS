@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Incident Report - {{ period_label }}</title>
+    <style>
+        :root {
+            color: #172033;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 10pt;
+        }
+        body {
+            margin: 0 auto;
+            max-width: 8.5in;
+            padding: 0.45in;
+        }
+        .toolbar {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 18px;
+        }
+        .print-button {
+            background: #1a365d;
+            border: 0;
+            border-radius: 4px;
+            color: white;
+            cursor: pointer;
+            font-size: 10pt;
+            padding: 10px 16px;
+        }
+        .masthead {
+            align-items: center;
+            border-bottom: 3px solid #1a365d;
+            display: flex;
+            gap: 18px;
+            padding-bottom: 14px;
+        }
+        .seal {
+            align-items: center;
+            border: 2px solid #1a365d;
+            border-radius: 50%;
+            color: #1a365d;
+            display: flex;
+            flex: 0 0 66px;
+            font-size: 9pt;
+            font-weight: 700;
+            height: 66px;
+            justify-content: center;
+            text-align: center;
+        }
+        .agency {
+            color: #475569;
+            font-size: 9pt;
+            letter-spacing: 1px;
+            margin: 0 0 4px;
+            text-transform: uppercase;
+        }
+        h1 {
+            color: #1a365d;
+            font-size: 21pt;
+            margin: 0;
+        }
+        .subheading {
+            color: #475569;
+            margin-top: 5px;
+        }
+        .report-meta {
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+            margin: 16px 0 22px;
+        }
+        .incident {
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            margin: 0 0 24px;
+            overflow: hidden;
+            page-break-inside: avoid;
+        }
+        .incident-title {
+            align-items: center;
+            background: #f1f5f9;
+            border-bottom: 1px solid #cbd5e1;
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 15px;
+        }
+        .incident-title h2 {
+            color: #1a365d;
+            font-size: 13pt;
+            margin: 0;
+        }
+        .incident-type {
+            color: #9a3412;
+            font-weight: 700;
+        }
+        .incident-body {
+            padding: 15px;
+        }
+        .details-grid {
+            display: grid;
+            gap: 14px 20px;
+            grid-template-columns: 1fr 1fr;
+        }
+        .field-label {
+            color: #64748b;
+            display: block;
+            font-size: 8pt;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+        }
+        .field-value {
+            min-height: 14px;
+            overflow-wrap: anywhere;
+            white-space: pre-wrap;
+        }
+        .wide {
+            grid-column: 1 / -1;
+        }
+        .signatures {
+            display: grid;
+            gap: 28px;
+            grid-template-columns: repeat(3, 1fr);
+            margin: 42px 10px 12px;
+        }
+        .signature {
+            border-top: 1px solid #64748b;
+            color: #475569;
+            padding-top: 7px;
+            text-align: center;
+        }
+        .empty {
+            border: 1px solid #cbd5e1;
+            color: #475569;
+            padding: 32px;
+            text-align: center;
+        }
+        .footer {
+            border-top: 1px solid #cbd5e1;
+            color: #64748b;
+            font-size: 8pt;
+            margin-top: 24px;
+            padding-top: 8px;
+            text-align: center;
+        }
+        @media print {
+            @page { size: portrait; margin: 0.45in; }
+            body { max-width: none; padding: 0; }
+            .toolbar { display: none; }
+            .incident:not(:first-of-type) { break-before: page; }
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <button class="print-button" type="button" onclick="window.print()">Print Incident Report</button>
+    </div>
+    <header class="masthead">
+        <div class="seal" aria-label="PDRRMO">PDRRMO</div>
+        <div>
+            <p class="agency">Provincial Disaster Risk Reduction and Management Office</p>
+            <h1>Fleet Incident Report</h1>
+            <div class="subheading">Official record of fleet-related incidents</div>
+        </div>
+    </header>
+    <div class="report-meta">
+        <span><strong>Reporting period:</strong> {{ period_label }}</span>
+        <span><strong>Generated:</strong> {{ generated_at|date:"M d, Y H:i" }}</span>
+    </div>
+
+    {% for incident in incident_records %}
+    <article class="incident">
+        <div class="incident-title">
+            <h2>Incident {{ forloop.counter|stringformat:"03d" }}</h2>
+            <span class="incident-type">{{ incident.get_incident_type_display }}</span>
+        </div>
+        <div class="incident-body">
+            <div class="details-grid">
+                <div>
+                    <span class="field-label">Date and time occurred</span>
+                    <div class="field-value">{{ incident.occurred_at|date:"F j, Y" }} at {{ incident.occurred_at|date:"g:i A" }}</div>
+                </div>
+                <div>
+                    <span class="field-label">Location</span>
+                    <div class="field-value">{{ incident.location }}</div>
+                </div>
+                <div>
+                    <span class="field-label">Fleet asset</span>
+                    <div class="field-value">{{ incident.vehicle.model_name }} ({{ incident.vehicle.plate_number }})</div>
+                </div>
+                <div>
+                    <span class="field-label">Asset division</span>
+                    <div class="field-value">{% if incident.vehicle.vehicle_type.name|lower == "marine" or incident.vehicle.vehicle_type.name|lower == "maritime" %}Seacraft{% else %}Land Asset{% endif %}</div>
+                </div>
+                <div>
+                    <span class="field-label">Last assigned driver / operator</span>
+                    <div class="field-value">{{ incident.last_assigned_driver|default:"Not recorded" }}</div>
+                </div>
+                <div>
+                    <span class="field-label">Reported by</span>
+                    <div class="field-value">{% if incident.reported_by %}{{ incident.reported_by.get_full_name|default:incident.reported_by.username }}{% else %}System{% endif %}</div>
+                </div>
+                <div class="wide">
+                    <span class="field-label">Incident description</span>
+                    <div class="field-value">{{ incident.description }}</div>
+                </div>
+                <div class="wide">
+                    <span class="field-label">Damage or affected equipment</span>
+                    <div class="field-value">{{ incident.damage_details|default:"None reported" }}</div>
+                </div>
+            </div>
+            <div class="signatures">
+                <div class="signature">Prepared by / Date</div>
+                <div class="signature">Reviewed by / Date</div>
+                <div class="signature">Received by / Date</div>
+            </div>
+        </div>
+    </article>
+    {% empty %}
+    <div class="empty">No incident reports were recorded during this reporting period.</div>
+    {% endfor %}
+
+    <footer class="footer">PDRRMO Fleet Management System · Official Incident Record</footer>
+</body>
+</html>

@@ -35,7 +35,7 @@
             {% for row in report_rows %}
             <tr>{% for value in row %}<td>{{ value }}</td>{% endfor %}</tr>
             {% empty %}
-            <tr><td colspan="6" class="text-center py-4 text-secondary">No activity was recorded for this report type and period.</td></tr>
+            <tr><td colspan="7" class="text-center py-4 text-secondary">No activity was recorded for this report type and period.</td></tr>
             {% endfor %}
         </tbody>
     </table>

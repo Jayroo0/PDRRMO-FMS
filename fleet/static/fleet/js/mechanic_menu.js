@@ -20,6 +20,15 @@ document.addEventListener('DOMContentLoaded', function () {
         } else if (action === 'generate-report') {
             const reportModal = document.getElementById('generateReportModal');
             bootstrap.Modal.getOrCreateInstance(reportModal).show();
+        } else if (action === 'file-incident') {
+            const incidentModal = document.getElementById('fleetIncidentModal');
+            bootstrap.Modal.getOrCreateInstance(incidentModal).show();
+        } else if (action === 'print-incident') {
+            const reportKind = document.getElementById('report-kind');
+            reportKind.value = 'incident';
+            reportKind.dispatchEvent(new Event('change'));
+            const reportModal = document.getElementById('generateReportModal');
+            bootstrap.Modal.getOrCreateInstance(reportModal).show();
         }
     });
 });

@@ -15,6 +15,8 @@
                         <select id="report-kind" name="report_kind" class="form-select" required>
                             <option value="activity">Deployment and return activity</option>
                             <option value="maintenance">Maintenance</option>
+                            <option value="damage">Damage and fault reports</option>
+                            <option value="incident">Incident reports</option>
                         </select>
                     </div>
                     <div class="mb-3 d-none" id="maintenance-category-field">
@@ -36,7 +38,7 @@
                     </div>
                     <div class="mb-3 report-date-field" data-period="month">
                         <label for="report-month" class="form-label fw-semibold">Month</label>
-                        <input type="month" id="report-month" name="month" class="form-control" required>
+                        <input type="month" id="report-month" name="month" class="form-control" value="{% now 'Y-m' %}" required>
                     </div>
                     <div class="mb-3 report-date-field d-none" data-period="week">
                         <label for="report-week" class="form-label fw-semibold">Week</label>
@@ -56,6 +58,12 @@
                             <input type="date" id="report-end-date" name="end_date" class="form-control" disabled>
                         </div>
                     </div>
+                    <div class="border-top pt-3 mt-3">
+                        <p class="small text-muted mb-2">Need to record a new incident?</p>
+                        <button type="button" class="btn btn-outline-danger" data-open-incident-report>
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i>Report an incident
+                        </button>
+                    </div>
                 </div>
                 <div class="modal-footer bg-light d-flex flex-wrap justify-content-between">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -70,3 +78,4 @@
         </div>
     </div>
 </div>
+{% include "fleet/_fleet_incident_modal.html" %}

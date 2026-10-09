@@ -1,7 +1,7 @@
 from django import forms
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from .models import Driver
+from .models import Driver, FleetIncident, Vehicle
 
 
 LAND_MAINTENANCE_CHECKLIST = (
@@ -106,6 +106,69 @@ class ScheduledMaintenanceForm(forms.Form):
         if due_date < timezone.localdate():
             raise ValidationError('Choose today or a future date for the next scheduled maintenance.')
         return due_date
+
+
+class FleetIncidentForm(forms.ModelForm):
+    occurred_at = forms.DateTimeField(
+        input_formats=['%Y-%m-%dT%H:%M', '%Y-%m-%dT%H:%M:%S'],
+        widget=forms.DateTimeInput(
+            attrs={'type': 'datetime-local', 'class': 'form-control'},
+            format='%Y-%m-%dT%H:%M',
+        ),
+    )
+
+    class Meta:
+        model = FleetIncident
+        fields = (
+            'vehicle',
+            'incident_type',
+            'occurred_at',
+            'location',
+            'description',
+            'damage_details',
+        )
+        widgets = {
+            'vehicle': forms.Select(attrs={'class': 'form-select'}),
+            'incident_type': forms.Select(attrs={'class': 'form-select'}),
+            'location': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Where did the incident happen?',
+            }),
+            'description': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Describe what happened.',
+            }),
+            'damage_details': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Describe any known damage, or leave blank if none.',
+            }),
+        }
+        labels = {
+            'vehicle': 'Fleet asset',
+            'incident_type': 'Incident type',
+            'occurred_at': 'Date and time',
+            'location': 'Incident location',
+            'description': 'What happened?',
+            'damage_details': 'Damage details (optional)',
+        }
+        help_texts = {
+            'description': 'Include relevant details. Do not include unnecessary personal information.',
+        }
+
+    def __init__(self, *args, vehicle_queryset=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if vehicle_queryset is not None:
+            self.fields['vehicle'].queryset = vehicle_queryset
+        self.fields['vehicle'].label_from_instance = (
+            lambda vehicle: f'{vehicle.model_name} · {vehicle.plate_number}'
+        )
+        if not self.is_bound:
+            self.initial.setdefault(
+                'occurred_at',
+                timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+            )
 
 
 class OperatorDetailsForm(forms.ModelForm):

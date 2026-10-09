@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth.hashers import check_password
 from django.template.response import TemplateResponse
 from django.http import HttpResponseRedirect
-from .models import Vehicle, VehicleType, Driver  # 🟢 Added Driver model here
+from .models import FleetIncident, Vehicle, VehicleType, Driver
 
 # =========================================================================
 # 1. ADMIN HEADERS PANEL STYLING TWEAKS
@@ -39,6 +39,30 @@ class DriverAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'license_authority', 'license_number', 'phone_number', 'is_active')
     list_filter = ('license_authority', 'is_active')
     search_fields = ('name', 'license_number', 'phone_number')
+
+
+@admin.register(FleetIncident)
+class FleetIncidentAdmin(admin.ModelAdmin):
+    list_display = ('occurred_at', 'vehicle', 'incident_type', 'last_assigned_driver', 'location', 'reported_by')
+    list_filter = ('incident_type', 'occurred_at', 'vehicle__vehicle_type')
+    search_fields = (
+        'vehicle__model_name',
+        'vehicle__plate_number',
+        'last_assigned_driver',
+        'location',
+        'description',
+        'damage_details',
+    )
+    readonly_fields = ('vehicle', 'incident_type', 'occurred_at', 'location', 'description', 'damage_details', 'last_assigned_driver', 'reported_by', 'created_at')
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 # =========================================================================

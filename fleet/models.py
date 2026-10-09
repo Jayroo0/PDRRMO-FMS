@@ -123,3 +123,40 @@ class Vehicle(models.Model):
 
     def __str__(self):
         return f"{self.model_name} ({self.plate_number})"
+
+
+class FleetIncident(models.Model):
+    INCIDENT_TYPE_CHOICES = [
+        ('ACCIDENT', 'Accident'),
+        ('COLLISION', 'Collision'),
+        ('BREAKDOWN', 'Breakdown during operation'),
+        ('DAMAGE', 'Asset or equipment damage'),
+        ('SAFETY', 'Safety incident'),
+        ('OTHER', 'Other incident'),
+    ]
+
+    vehicle = models.ForeignKey(
+        Vehicle,
+        on_delete=models.PROTECT,
+        related_name='incident_reports',
+    )
+    incident_type = models.CharField(max_length=20, choices=INCIDENT_TYPE_CHOICES)
+    occurred_at = models.DateTimeField()
+    location = models.CharField(max_length=255)
+    description = models.TextField(max_length=2000)
+    damage_details = models.TextField(max_length=2000, blank=True)
+    last_assigned_driver = models.CharField(max_length=100, blank=True)
+    reported_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='fleet_incident_reports',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-occurred_at', '-pk')
+
+    def __str__(self):
+        return f"{self.get_incident_type_display()} - {self.vehicle} ({self.occurred_at:%Y-%m-%d %H:%M})"

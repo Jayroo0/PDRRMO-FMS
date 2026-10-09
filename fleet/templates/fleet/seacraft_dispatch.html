@@ -141,6 +141,12 @@
             <button type="button" class="btn btn-outline-success text-start fw-semibold seacraft-menu-action" data-menu-action="generate-report">
                 <i class="fa-solid fa-file-export me-2"></i>Generate Report
             </button>
+            <button type="button" class="btn btn-outline-danger text-start fw-semibold seacraft-menu-action" data-menu-action="file-incident">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>File Incident Report
+            </button>
+            <button type="button" class="btn btn-outline-primary text-start fw-semibold seacraft-menu-action" data-menu-action="print-incident">
+                <i class="fa-solid fa-print me-2"></i>Print Incident Report
+            </button>
             <div class="mt-auto pt-3 border-top">
                 <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="m-0">
                     {% csrf_token %}
@@ -190,7 +196,7 @@
                 <div class="tab-content" id="seacraftTabContent">
                     
                     <!-- TAB 1: STANDBY & OPERATIONAL -->
-                    <div class="tab-pane fade show active dashboard-view-list" id="standby-crafts" data-view-list="dispatch-standby-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="standby-crafts-tab">
+                    <div class="tab-pane fade show active dashboard-view-list" id="standby-crafts" data-view-list="dispatch-standby-crafts" data-view-type="table" data-view-default="grid" data-horizontal-card-scroll="true" role="tabpanel" aria-labelledby="standby-crafts-tab">
                         <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
                                 <tr>
@@ -323,7 +329,7 @@
                     </div>
 
                     <!-- TAB 2: ACTIVE DEPLOYMENTS -->
-                    <div class="tab-pane fade dashboard-view-list" id="deployed-crafts" data-view-list="dispatch-deployed-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="deployed-crafts-tab">
+                    <div class="tab-pane fade dashboard-view-list" id="deployed-crafts" data-view-list="dispatch-deployed-crafts" data-view-type="table" data-view-default="grid" data-horizontal-card-scroll="true" role="tabpanel" aria-labelledby="deployed-crafts-tab">
                         <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
                                 <tr>
@@ -371,7 +377,7 @@
                     </div>
 
                     <!-- TAB 3: MAINTENANCE & DISPOSAL -->
-                    <div class="tab-pane fade dashboard-view-list" id="maintenance-crafts" data-view-list="dispatch-maintenance-crafts" data-view-type="table" data-view-default="grid" role="tabpanel" aria-labelledby="maintenance-crafts-tab">
+                    <div class="tab-pane fade dashboard-view-list" id="maintenance-crafts" data-view-list="dispatch-maintenance-crafts" data-view-type="table" data-view-default="grid" data-horizontal-card-scroll="true" role="tabpanel" aria-labelledby="maintenance-crafts-tab">
                         <table class="table table-hover align-middle mb-0 asset-grid-table asset-grid-table--sea">
                             <thead class="table-theme">
                                 <tr>
@@ -714,6 +720,15 @@
                         const modal = document.getElementById('addSeacraftOperatorModal');
                         bootstrap.Modal.getOrCreateInstance(modal).show();
                     } else if (action === 'generate-report') {
+                        const modal = document.getElementById('generateReportModal');
+                        bootstrap.Modal.getOrCreateInstance(modal).show();
+                    } else if (action === 'file-incident') {
+                        const modal = document.getElementById('fleetIncidentModal');
+                        bootstrap.Modal.getOrCreateInstance(modal).show();
+                    } else if (action === 'print-incident') {
+                        const reportKind = document.getElementById('report-kind');
+                        reportKind.value = 'incident';
+                        reportKind.dispatchEvent(new Event('change'));
                         const modal = document.getElementById('generateReportModal');
                         bootstrap.Modal.getOrCreateInstance(modal).show();
                     }

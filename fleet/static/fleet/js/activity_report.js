@@ -9,6 +9,18 @@ document.addEventListener('DOMContentLoaded', function () {
         updateMaintenanceCategory();
     }
 
+    const reportModal = document.getElementById('generateReportModal');
+    const incidentModal = document.getElementById('fleetIncidentModal');
+    const openIncidentButton = document.querySelector('[data-open-incident-report]');
+    if (reportModal && incidentModal && openIncidentButton) {
+        openIncidentButton.addEventListener('click', function () {
+            reportModal.addEventListener('hidden.bs.modal', function () {
+                bootstrap.Modal.getOrCreateInstance(incidentModal).show();
+            }, { once: true });
+            bootstrap.Modal.getOrCreateInstance(reportModal).hide();
+        });
+    }
+
     const reportPeriod = document.getElementById('report-period');
     if (!reportPeriod) {
         return;

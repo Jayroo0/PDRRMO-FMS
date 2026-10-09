@@ -31,10 +31,11 @@ from .forms import (
     SEACRAFT_MAINTENANCE_CHECKLIST,
     MaintenanceChecklistForm,
     MaintenanceFaultForm,
+    FleetIncidentForm,
     OperatorDetailsForm,
     ScheduledMaintenanceForm,
 )
-from .models import Vehicle, VehicleType, Driver, VehicleAsset, OperatorProfile
+from .models import FleetIncident, Vehicle, VehicleType, Driver, VehicleAsset, OperatorProfile
 
 # =========================================================================
 # SYSTEM SECURITY & AUDIT LOG HELPERS
@@ -388,9 +389,7 @@ def deployment_activity_log(request):
     return render(request, 'fleet/deployment_activity_log.html', context)
 
 
-@login_required
-def logistics_generate_report(request):
-    user = request.user
+def fleet_report_permissions(user):
     user_groups = set(user.groups.values_list('name', flat=True))
     dashboard_groups = {'Logistics Officers', 'Technicians', 'Maritime_Tech', 'Seacraft Dispatch'}
     has_dashboard_group = bool(user_groups & dashboard_groups)
@@ -417,8 +416,7 @@ def logistics_generate_report(request):
             keyword in user.username.lower() for keyword in ['sea', 'maritime']
         )
     if not (is_logistics or is_land_mechanic or is_seacraft_technician or is_seacraft_dispatch):
-        messages.error(request, "Access restricted to authorized fleet operations and maintenance accounts.")
-        return redirect('dashboard_portal:homepage')
+        return None
 
     allowed_divisions = set()
     if is_land_mechanic:
@@ -426,17 +424,110 @@ def logistics_generate_report(request):
     if is_seacraft_technician or is_seacraft_dispatch:
         allowed_divisions.add('Seacraft')
 
+    return {
+        'is_logistics': is_logistics,
+        'is_land_mechanic': is_land_mechanic,
+        'is_seacraft_technician': is_seacraft_technician,
+        'is_seacraft_dispatch': is_seacraft_dispatch,
+        'allowed_divisions': allowed_divisions,
+    }
+
+
+def fleet_report_dashboard_name(permissions):
+    if permissions['is_logistics']:
+        return 'dashboard_portal:logistics_dashboard'
+    if permissions['is_seacraft_dispatch']:
+        return 'dashboard_portal:seacraft_dispatch'
+    if permissions['is_seacraft_technician']:
+        return 'dashboard_portal:seacraft_dashboard'
+    return 'dashboard_portal:repairman_dashboard'
+
+
+def last_assigned_driver_name(vehicle):
+    if vehicle.assigned_driver_id and vehicle.assigned_driver:
+        return vehicle.assigned_driver.name
+
+    vehicle_content_type = ContentType.objects.get_for_model(Vehicle)
+    deployment_message = LogEntry.objects.filter(
+        content_type=vehicle_content_type,
+        object_id=str(vehicle.pk),
+        change_message__startswith='Deployed asset unit to ',
+    ).order_by('-action_time', '-pk').values_list('change_message', flat=True).first()
+    if not deployment_message or ' with operator ' not in deployment_message:
+        return ''
+    return deployment_message.rpartition(' with operator ')[2].rstrip('.')
+
+
+@login_required
+def fleet_report_incident(request):
+    if request.method != 'POST':
+        return HttpResponse("Incident reports must be submitted using the form.", status=405)
+
+    permissions = fleet_report_permissions(request.user)
+    if permissions is None:
+        messages.error(request, "Access restricted to authorized fleet operations and maintenance accounts.")
+        return redirect('dashboard_portal:homepage')
+
+    vehicle_queryset = Vehicle.objects.select_related('vehicle_type')
+    if not permissions['is_logistics']:
+        division_filter = Q(pk__in=[])
+        if 'Land Asset' in permissions['allowed_divisions']:
+            division_filter |= ~seacraft_vehicle_type_filter()
+        if 'Seacraft' in permissions['allowed_divisions']:
+            division_filter |= seacraft_vehicle_type_filter()
+        vehicle_queryset = vehicle_queryset.filter(division_filter)
+
+    form = FleetIncidentForm(request.POST, vehicle_queryset=vehicle_queryset)
+    if form.is_valid():
+        incident = form.save(commit=False)
+        incident.reported_by = request.user
+        incident.last_assigned_driver = last_assigned_driver_name(incident.vehicle)
+        incident.save()
+        log_action_to_admin(
+            request,
+            incident,
+            ADDITION,
+            f"Reported {incident.get_incident_type_display().lower()} for {incident.vehicle}.",
+        )
+        messages.success(request, "Incident report saved and added to fleet incident reports.")
+    else:
+        for field, errors in form.errors.items():
+            field_label = form.fields[field].label if field in form.fields else "Incident report"
+            for error in errors:
+                messages.error(request, f"{field_label}: {error}")
+        if not form.errors:
+            messages.error(request, "Check the incident details and try again.")
+
+    return redirect(fleet_report_dashboard_name(permissions))
+
+
+@login_required
+def logistics_generate_report(request):
+    permissions = fleet_report_permissions(request.user)
+    if permissions is None:
+        messages.error(request, "Access restricted to authorized fleet operations and maintenance accounts.")
+        return redirect('dashboard_portal:homepage')
+
+    is_logistics = permissions['is_logistics']
+    allowed_divisions = permissions['allowed_divisions']
+
     report_format = request.GET.get('format', '').lower()
     report_kind = request.GET.get('report_kind', 'activity').lower()
     maintenance_category = request.GET.get('maintenance_category', 'all').lower()
-    if report_kind not in {'activity', 'maintenance'}:
-        return HttpResponse("Choose an activity or maintenance report.", status=400)
+    if report_kind not in {'activity', 'maintenance', 'damage', 'incident'}:
+        return HttpResponse("Choose an activity, maintenance, damage, or incident report.", status=400)
     if maintenance_category not in {'all', 'regular', 'other'}:
         return HttpResponse("Choose all, regular, or other maintenance.", status=400)
 
     if report_kind == 'maintenance':
         report_title = 'Fleet Maintenance Report'
         report_heading = 'Maintenance Activity Report'
+    elif report_kind == 'damage':
+        report_title = 'Fleet Damage and Fault Report'
+        report_heading = 'Damage and Fault Report'
+    elif report_kind == 'incident':
+        report_title = 'Fleet Incident Report'
+        report_heading = 'Incident Report'
     else:
         report_title = 'PDRRMO Fleet Deployment Report'
         report_heading = 'Deployment Activity Report'
@@ -486,7 +577,48 @@ def logistics_generate_report(request):
         action_time__gte=start_datetime,
         action_time__lt=end_datetime,
     )
-    if report_kind == 'maintenance':
+    rows = []
+    incident_records = []
+    if report_kind == 'incident':
+        incident_query = FleetIncident.objects.filter(
+            occurred_at__gte=start_datetime,
+            occurred_at__lt=end_datetime,
+        ).select_related('vehicle__vehicle_type', 'reported_by')
+        if not is_logistics:
+            incident_division_filter = Q(pk__in=[])
+            if 'Land Asset' in allowed_divisions:
+                incident_division_filter |= ~seacraft_vehicle_type_filter()
+            if 'Seacraft' in allowed_divisions:
+                incident_division_filter |= seacraft_vehicle_type_filter()
+            incident_query = incident_query.filter(vehicle__in=Vehicle.objects.filter(incident_division_filter))
+        incident_records = list(incident_query.order_by('-occurred_at', '-pk'))
+        for incident in incident_records:
+            division = (
+                'Seacraft'
+                if incident.vehicle.vehicle_type.name.strip().casefold() in {'marine', 'maritime'}
+                else 'Land Asset'
+            )
+            details = (
+                f"{incident.get_incident_type_display()} — {incident.location}: "
+                f"{incident.description}"
+            )
+            if incident.damage_details:
+                details += f" Damage: {incident.damage_details}"
+            rows.append([
+                timezone.localtime(incident.occurred_at).strftime('%Y-%m-%d %H:%M'),
+                incident.get_incident_type_display(),
+                division,
+                str(incident.vehicle),
+                details,
+                incident.reported_by.username if incident.reported_by else 'System',
+                incident.last_assigned_driver or 'Not recorded',
+            ])
+        event_query = event_query.none()
+    elif report_kind == 'damage':
+        event_query = event_query.filter(
+            change_message__startswith='Reported maintenance fault for '
+        )
+    elif report_kind == 'maintenance':
         maintenance_events = (
             Q(change_message__startswith='Scheduled maintenance due: ')
             | Q(change_message__startswith='Scheduled Tire replacement for ')
@@ -529,7 +661,6 @@ def logistics_generate_report(request):
             pk__in=[event.object_id for event in events]
         ).select_related('vehicle_type')
     }
-    rows = []
     for event in events:
         vehicle = vehicles_by_id.get(str(event.object_id))
         division = 'Seacraft' if (
@@ -546,6 +677,8 @@ def logistics_generate_report(request):
                 activity = 'Fault reported'
             else:
                 activity = 'Maintenance completed'
+        elif report_kind == 'damage':
+            activity = 'Damage / fault reported'
         else:
             activity = 'Deployment' if event.change_message.startswith('Deployed') else 'Return'
         rows.append([
@@ -555,10 +688,19 @@ def logistics_generate_report(request):
             event.object_repr,
             event.change_message,
             event.user.username if event.user else 'System',
+            '',
         ])
 
     safe_period = f"{start_date:%Y%m%d}-{end_date:%Y%m%d}"
-    headers = ['Date & Time', 'Activity', 'Division', 'Fleet Asset', 'Activity Details', 'Recorded By']
+    headers = [
+        'Date & Time',
+        'Activity',
+        'Division',
+        'Fleet Asset',
+        'Activity Details',
+        'Recorded By',
+        'Last Assigned Driver',
+    ]
     spreadsheet_safe_rows = [
         [
             "'" + value if isinstance(value, str) and value.startswith(('=', '+', '-', '@')) else value
@@ -568,6 +710,16 @@ def logistics_generate_report(request):
     ]
 
     if report_format == 'print':
+        if report_kind == 'incident':
+            return render(
+                request,
+                'fleet/fleet_incident_report_print.html',
+                {
+                    'period_label': period_label,
+                    'incident_records': incident_records,
+                    'generated_at': timezone.localtime(),
+                },
+            )
         return render(
             request,
             'fleet/logistics_deployment_report_print.html',
@@ -607,7 +759,7 @@ def logistics_generate_report(request):
         for cell in sheet[2]:
             cell.font = Font(bold=True, color='FFFFFF')
             cell.fill = PatternFill('solid', fgColor='2563EB')
-        for column_index, width in enumerate((20, 16, 16, 34, 90, 24), start=1):
+        for column_index, width in enumerate((20, 20, 16, 34, 90, 24, 24), start=1):
             sheet.column_dimensions[get_column_letter(column_index)].width = width
         output = io.BytesIO()
         workbook.save(output)
@@ -650,7 +802,7 @@ def logistics_generate_report(request):
     table = Table(
         report_data,
         repeatRows=1,
-        colWidths=[1.0 * inch, 0.75 * inch, 0.75 * inch, 1.35 * inch, 5.1 * inch, 1.0 * inch],
+        colWidths=[0.9 * inch, 0.85 * inch, 0.7 * inch, 1.15 * inch, 4.3 * inch, 0.8 * inch, 1.0 * inch],
     )
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1A365D')),
@@ -730,7 +882,7 @@ def repairman_dashboard(request):
     
     if not is_authorized:
         messages.error(request, "Access restricted to authorized Repair Technicians.")
-        return redirect('homepage')
+        return redirect('dashboard_portal:homepage')
 
     move_overdue_vehicles_to_maintenance(request)
 
@@ -819,6 +971,9 @@ def repairman_dashboard(request):
 
     return render(request, 'fleet/repairman_dashboard.html', {
         'vehicles': vehicles,
+        'incident_form': FleetIncidentForm(
+            vehicle_queryset=Vehicle.objects.exclude(seacraft_vehicle_type_filter()).select_related('vehicle_type'),
+        ),
         'maintenance_count': sum(
             vehicle.status in {'MAINTENANCE', 'PENDING_DISPOSAL'}
             for vehicle in vehicles
@@ -844,7 +999,7 @@ def seacraft_dashboard(request):
 
     if not is_authorized:
         messages.error(request, "Access restricted to authorized Maritime Operators.")
-        return redirect('homepage')
+        return redirect('dashboard_portal:homepage')
 
     move_overdue_vehicles_to_maintenance(request)
 
@@ -933,6 +1088,9 @@ def seacraft_dashboard(request):
 
     return render(request, 'fleet/seacraft_dashboard.html', {
         'vehicles': vehicles,
+        'incident_form': FleetIncidentForm(
+            vehicle_queryset=Vehicle.objects.filter(seacraft_vehicle_type_filter()).select_related('vehicle_type'),
+        ),
         'maintenance_count': sum(
             vehicle.status in {'MAINTENANCE', 'PENDING_DISPOSAL'}
             for vehicle in vehicles
@@ -953,7 +1111,7 @@ def logistics_dashboard(request):
 
     if not check_user_role(user, 'Logistics Officers', ['logistics', 'log', 'depot', 'fleet']):
         messages.error(request, "Access restricted to Logistics Depot management accounts.")
-        return redirect('homepage')
+        return redirect('dashboard_portal:homepage')
 
     move_overdue_vehicles_to_maintenance(request)
 
@@ -1050,11 +1208,23 @@ def logistics_dashboard(request):
 
         # ACTION C: NEW ASSET REGISTRATION ONBOARDING
         elif action == 'add_vehicle':
-            model_name = request.POST.get('model_name')
-            plate_number = request.POST.get('plate_number')
-            type_id = request.POST.get('vehicle_type')
-            
-            v_type = get_object_or_404(VehicleType, id=type_id)
+            model_name = request.POST.get('model_name', '').strip()
+            plate_number = request.POST.get('plate_number', '').strip()
+            type_id = request.POST.get('vehicle_type', '').strip()
+            if not model_name or not plate_number or not type_id:
+                messages.error(request, "Please enter the asset name, plate number or hull ID, and asset type.")
+                return redirect('dashboard_portal:logistics_dashboard')
+            if len(model_name) > 100 or len(plate_number) > 50:
+                messages.error(request, "The asset name must be 100 characters or fewer and the plate number or hull ID must be 50 characters or fewer.")
+                return redirect('dashboard_portal:logistics_dashboard')
+            v_type = VehicleType.objects.filter(pk=type_id).first()
+            if v_type is None:
+                messages.error(request, "Choose a valid registered asset type.")
+                return redirect('dashboard_portal:logistics_dashboard')
+            if Vehicle.objects.filter(plate_number=plate_number).exists():
+                messages.error(request, f"An asset with plate number or hull ID '{plate_number}' is already registered.")
+                return redirect('dashboard_portal:logistics_dashboard')
+
             new_asset = Vehicle.objects.create(
                 model_name=model_name,
                 plate_number=plate_number,
@@ -1189,6 +1359,9 @@ def logistics_dashboard(request):
         'assigned_driver_ids': assigned_driver_ids,
         'assigned_driver_map': assigned_driver_map,
         'operator_form': OperatorDetailsForm(),
+        'incident_form': FleetIncidentForm(
+            vehicle_queryset=all_vehicles.select_related('vehicle_type'),
+        ),
     }
     return render(request, 'fleet/logistics_dashboard.html', context)
 
@@ -1205,7 +1378,7 @@ def seacraft_dispatch_view(request):
         or any(x in user.username.lower() for x in ["sea", "maritime"])
     ):
         messages.error(request, "Access restricted to authorized Maritime Dispatchers.")
-        return redirect("homepage")
+        return redirect("dashboard_portal:homepage")
 
     move_overdue_vehicles_to_maintenance(request)
 
@@ -1435,5 +1608,8 @@ def seacraft_dispatch_view(request):
             "drivers": sea_drivers,
             "assigned_driver_ids": assigned_driver_ids,
             "operator_form": OperatorDetailsForm(allowed_operator_type='SEA'),
+            "incident_form": FleetIncidentForm(
+                vehicle_queryset=sea_crafts.select_related('vehicle_type'),
+            ),
         },
     )

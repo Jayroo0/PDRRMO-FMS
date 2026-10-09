@@ -18,10 +18,16 @@
         .btn-teal:hover { background-color: #0284C7; color: white; }
         .panel-header-custom { background-color: #1A365D; color: white; padding: 12px 20px; font-weight: bold; border-radius: 4px 4px 0 0; }
         .asset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .75rem; }
+        .logistics-asset-grid { display: flex; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; gap: .75rem; padding-bottom: .75rem; overscroll-behavior-x: contain; scrollbar-width: thin; }
+        .logistics-asset-grid > .asset-card { flex: 0 0 320px; max-width: 320px; }
+        .logistics-asset-grid > .asset-grid-empty { flex: 0 0 100%; }
         .asset-grid-empty { grid-column: 1 / -1; }
         .asset-card { border: 1px solid #dee2e6; border-top: 4px solid #1A365D; border-radius: .5rem; background: #fff; height: 100%; }
         .asset-card-maritime { border-top-color: #0284C7; }
         .asset-card-image { display: block; width: 100%; height: 72px; object-fit: contain; background: #f1f5f9; border-radius: .35rem; }
+        @media (max-width: 576px) {
+            .logistics-asset-grid > .asset-card { flex-basis: min(84vw, 320px); }
+        }
         
         .custom-tabs .nav-link {
             color: #475569;
@@ -93,6 +99,12 @@
             <button type="button" class="btn btn-outline-success text-start fw-semibold logistics-menu-action" data-menu-action="generate-report">
                 <i class="fa-solid fa-file-export me-2"></i>Generate Report
             </button>
+            <button type="button" class="btn btn-outline-danger text-start fw-semibold logistics-menu-action" data-menu-action="file-incident">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>File Incident Report
+            </button>
+            <button type="button" class="btn btn-outline-primary text-start fw-semibold logistics-menu-action" data-menu-action="print-incident">
+                <i class="fa-solid fa-print me-2"></i>Print Incident Report
+            </button>
             <button type="button" class="btn btn-orange text-white text-start fw-semibold logistics-menu-action" data-menu-action="add-asset">
                 <i class="fa-solid fa-plus me-2"></i>Onboard New Fleet Asset
             </button>
@@ -157,7 +169,7 @@
                 <div class="tab-content" id="landTabsContent">
                     <!-- STANDBY TAB -->
                     <div class="tab-pane fade show active" id="land-standby-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for vehicle in land_standby %}
                             <article class="asset-card shadow-sm">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -200,7 +212,7 @@
 
                     <!-- ACTIVE DEPLOYMENTS TAB -->
                     <div class="tab-pane fade" id="land-deployed-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for vehicle in land_deployed %}
                             <article class="asset-card shadow-sm border-primary">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -241,7 +253,7 @@
 
                     <!-- MAINTENANCE TAB -->
                     <div class="tab-pane fade" id="land-maint-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for vehicle in land_maintenance %}
                             <article class="asset-card shadow-sm border-danger">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -336,7 +348,7 @@
                 <div class="tab-content" id="seaTabsContent">
                     <!-- STANDBY TAB -->
                     <div class="tab-pane fade show active" id="sea-standby-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for craft in sea_standby %}
                             <article class="asset-card asset-card-maritime shadow-sm">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -379,7 +391,7 @@
 
                     <!-- ACTIVE DEPLOYMENTS TAB -->
                     <div class="tab-pane fade" id="sea-deployed-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for craft in sea_deployed %}
                             <article class="asset-card asset-card-maritime shadow-sm border-primary">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -420,7 +432,7 @@
 
                     <!-- MAINTENANCE TAB -->
                     <div class="tab-pane fade" id="sea-maint-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for craft in sea_maintenance %}
                             <article class="asset-card asset-card-maritime shadow-sm border-danger">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -690,38 +702,40 @@
     </div>
 
     <!-- MODAL: ONBOARD NEW VEHICLE -->
-    <div class="modal fade" id="addVehicleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="addVehicleModal" tabindex="-1" aria-labelledby="addVehicleModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header text-white" style="background-color: #1A365D;">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-plus-circle text-info"></i> Onboard New Fleet Asset Entry</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title fw-bold" id="addVehicleModalLabel"><i class="fa-solid fa-plus-circle text-info me-2"></i>Add a fleet asset</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="POST" action="{% url 'dashboard_portal:logistics_dashboard' %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add_vehicle">
                     <div class="modal-body bg-white">
+                        <p class="text-muted small">Enter the asset name and its registration or hull identifier, then choose its type.</p>
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Model / Equipment Nomenclature Name</label>
-                            <input type="text" id="onboard-model" name="model_name" class="form-control" placeholder="e.g., Toyota Hiace ALS Ambulance" required>
+                            <label class="form-label fw-semibold" for="onboard-model">Asset name</label>
+                            <input type="text" id="onboard-model" name="model_name" class="form-control" placeholder="For example, Toyota Hiace ambulance" maxlength="100" autocomplete="off" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Plate Number / Hull ID Tag</label>
-                            <input type="text" id="onboard-plate" name="plate_number" class="form-control" placeholder="e.g., PDR-ALS-02" required>
+                            <label class="form-label fw-semibold" for="onboard-plate">Plate number or hull ID</label>
+                            <input type="text" id="onboard-plate" name="plate_number" class="form-control" placeholder="For example, PDR-ALS-02 or MAR-001" maxlength="50" autocomplete="off" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label fw-semibold">Dynamic Admin Classification Category</label>
-                            <select name="vehicle_type" class="form-select" required>
-                                <option value="" disabled selected>Select registered type category</option>
+                            <label class="form-label fw-semibold" for="onboard-vehicle-type">Asset type</label>
+                            <select id="onboard-vehicle-type" name="vehicle_type" class="form-select" required>
+                                <option value="" disabled selected>Choose an asset type</option>
                                 {% for type in types %}
                                 <option value="{{ type.id }}">{{ type.name }}</option>
                                 {% endfor %}
                             </select>
+                            <div class="form-text">Choose the registered land or seacraft type that matches this asset.</div>
                         </div>
                     </div>
                     <div class="modal-footer bg-light">
-                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-sm btn-orange"><i class="fa-solid fa-check-circle"></i> Commit to DB Registry</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-orange"><i class="fa-solid fa-check-circle me-1"></i>Register asset</button>
                     </div>
                 </form>
             </div>
@@ -901,11 +915,21 @@
                     const modalTargets = {
                         'add-operator': '#addOperatorModal',
                         'add-asset': '#addVehicleModal',
-                        'generate-report': '#generateReportModal'
+                        'generate-report': '#generateReportModal',
+                        'file-incident': '#fleetIncidentModal'
                     };
                     if (modalTargets[action]) {
                         const modalElement = document.querySelector(modalTargets[action]);
                         bootstrap.Modal.getOrCreateInstance(modalElement).show();
+                        return;
+                    }
+
+                    if (action === 'print-incident') {
+                        const reportKind = document.getElementById('report-kind');
+                        reportKind.value = 'incident';
+                        reportKind.dispatchEvent(new Event('change'));
+                        const reportModal = document.getElementById('generateReportModal');
+                        bootstrap.Modal.getOrCreateInstance(reportModal).show();
                         return;
                     }
 

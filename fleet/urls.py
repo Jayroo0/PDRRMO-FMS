@@ -12,6 +12,7 @@ urlpatterns = [
     path('home/deployments/', views.deployment_activity_log, name='deployment_activity_log'),
     path('logistics/reports/deployments/', views.logistics_generate_report, name='logistics_generate_report'),
     path('fleet/reports/activity/', views.logistics_generate_report, name='fleet_activity_report'),
+    path('fleet/reports/incidents/', views.fleet_report_incident, name='fleet_report_incident'),
 
     # 🔀 Central Gateway Router
     path('portal/dispatch/', views.dashboard_router, name='dashboard_portal'),

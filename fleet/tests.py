@@ -9,7 +9,7 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from .models import Driver, Vehicle, VehicleType
+from .models import Driver, FleetIncident, Vehicle, VehicleType
 
 
 class LoginViewTests(TestCase):
@@ -51,6 +51,48 @@ class LoginViewTests(TestCase):
         self.assertContains(response, 'license authority: ${authority} (automatic).')
         self.assertContains(response, 'data-menu-action="generate-report"')
         self.assertContains(response, 'Generate Fleet Report')
+        self.assertEqual(response.content.count(b'class="asset-grid logistics-asset-grid"'), 6)
+        self.assertContains(response, 'Add a fleet asset')
+        self.assertContains(response, 'Plate number or hull ID')
+        self.assertContains(response, 'Choose an asset type')
+        self.assertContains(response, 'Register asset')
+
+    def test_asset_onboarding_rejects_missing_or_duplicate_details_with_friendly_message(self):
+        group = Group.objects.create(name='Logistics Officers')
+        user = User.objects.create_user(username='asset_logistics', password='SecurePass123!')
+        user.groups.add(group)
+        vehicle_type = VehicleType.objects.create(name='LAND')
+        existing_vehicle = Vehicle.objects.create(
+            model_name='Existing Fleet Vehicle',
+            plate_number='PDR-ALS-02',
+            vehicle_type=vehicle_type,
+        )
+        self.client.force_login(user)
+
+        missing_fields_response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {'action': 'add_vehicle', 'model_name': 'New ambulance'},
+            follow=True,
+        )
+        duplicate_identifier_response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'add_vehicle',
+                'model_name': 'Replacement ambulance',
+                'plate_number': existing_vehicle.plate_number,
+                'vehicle_type': vehicle_type.pk,
+            },
+            follow=True,
+        )
+
+        self.assertContains(
+            missing_fields_response,
+            'Please enter the asset name, plate number or hull ID, and asset type.',
+        )
+        self.assertContains(
+            duplicate_identifier_response,
+            "An asset with plate number or hull ID &#x27;PDR-ALS-02&#x27; is already registered.",
+        )
 
 
 class LogisticsReportExportTests(TestCase):
@@ -84,18 +126,107 @@ class LogisticsReportExportTests(TestCase):
 
     def test_menu_report_form_offers_periods_and_export_formats(self):
         response = self.client.get(reverse('dashboard_portal:logistics_dashboard'))
+        rendered = response.content.decode()
 
         self.assertContains(response, 'data-menu-action="generate-report"')
         self.assertContains(response, 'value="month">Monthly')
+        self.assertContains(
+            response,
+            f'id="report-month" name="month" class="form-control" value="{timezone.localdate():%Y-%m}"',
+        )
         self.assertContains(response, 'value="week">Weekly')
         self.assertContains(response, 'value="day">Daily')
         self.assertContains(response, 'value="custom">Custom date range')
         self.assertContains(response, 'name="report_kind"')
         self.assertContains(response, 'name="maintenance_category"')
+        self.assertContains(response, 'value="damage">Damage and fault reports')
+        self.assertContains(response, 'value="incident">Incident reports')
+        self.assertContains(response, 'Report a fleet incident')
         self.assertContains(response, 'value="csv"')
         self.assertContains(response, 'value="xlsx"')
         self.assertContains(response, 'value="pdf"')
         self.assertContains(response, 'action="/fleet/reports/activity/"')
+        self.assertContains(response, 'data-menu-action="file-incident"')
+        self.assertContains(response, 'data-menu-action="print-incident"')
+        self.assertLess(
+            rendered.index('</form>', rendered.index('id="generateReportForm"')),
+            rendered.index('action="/fleet/reports/incidents/"'),
+        )
+
+    def test_incident_reporting_is_available_on_every_fleet_dashboard(self):
+        dashboards = (
+            ('Seacraft Dispatch', 'seacraft_dispatch'),
+            ('Technicians', 'repairman_dashboard'),
+            ('Maritime_Tech', 'seacraft_dashboard'),
+        )
+        for group_name, dashboard_name in dashboards:
+            with self.subTest(dashboard=dashboard_name):
+                user = User.objects.create_user(username=f'{dashboard_name}_incident_user')
+                user.groups.add(Group.objects.create(name=group_name))
+                self.client.force_login(user)
+
+                response = self.client.get(reverse(f'dashboard_portal:{dashboard_name}'))
+
+                self.assertContains(response, 'Report a fleet incident')
+                self.assertContains(response, 'action="/fleet/reports/incidents/"')
+                self.assertContains(response, 'data-menu-action="file-incident"')
+                self.assertContains(response, 'data-menu-action="print-incident"')
+
+        self.client.force_login(self.user)
+
+    def test_dispatch_and_mechanics_can_file_and_print_incident_reports(self):
+        sea_type = VehicleType.objects.create(name='MARINE')
+        role_assets = (
+            ('Seacraft Dispatch', 'dispatch_incident', sea_type, 'SEA-DISPATCH-INCIDENT'),
+            ('Technicians', 'land_mechanic_incident', self.land_type, 'LAND-MECHANIC-INCIDENT'),
+            ('Maritime_Tech', 'sea_mechanic_incident', sea_type, 'SEA-MECHANIC-INCIDENT'),
+        )
+        incident_time = timezone.localtime().replace(second=0, microsecond=0)
+
+        for group_name, username, vehicle_type, plate_number in role_assets:
+            with self.subTest(role=group_name):
+                user = User.objects.create_user(username=username)
+                user.groups.add(Group.objects.create(name=group_name))
+                vehicle = Vehicle.objects.create(
+                    model_name=f'{username} asset',
+                    plate_number=plate_number,
+                    vehicle_type=vehicle_type,
+                )
+                self.client.force_login(user)
+
+                submission = self.client.post(
+                    reverse('dashboard_portal:fleet_report_incident'),
+                    {
+                        'vehicle': vehicle.pk,
+                        'incident_type': 'DAMAGE',
+                        'occurred_at': incident_time.strftime('%Y-%m-%dT%H:%M'),
+                        'location': 'Incident test location',
+                        'description': 'Incident filed by dashboard role.',
+                        'damage_details': 'Test damage details.',
+                    },
+                    follow=True,
+                )
+                self.assertContains(
+                    submission,
+                    'Incident report saved and added to fleet incident reports.',
+                )
+
+                printed_report = self.client.get(
+                    reverse('dashboard_portal:fleet_activity_report'),
+                    {
+                        'report_kind': 'incident',
+                        'period': 'day',
+                        'day': timezone.localdate().isoformat(),
+                        'format': 'print',
+                    },
+                )
+
+                self.assertEqual(printed_report.status_code, 200)
+                self.assertContains(printed_report, 'Incident Report')
+                self.assertContains(printed_report, plate_number)
+                self.assertContains(printed_report, 'window.print()')
+
+        self.client.force_login(self.user)
 
     def test_report_prints_and_exports_csv_xlsx_and_pdf(self):
         today = timezone.localdate()
@@ -192,6 +323,168 @@ class LogisticsReportExportTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b'Report Seacraft', response.content)
         self.assertNotIn(b'Report Land Vehicle', response.content)
+
+    def test_logistics_can_submit_and_export_fleet_incident_report(self):
+        assigned_driver = Driver.objects.create(
+            name='Last Assigned Land Driver',
+            license_number='LAND-LAST-001',
+        )
+        self.vehicle.assigned_driver = assigned_driver
+        self.vehicle.save(update_fields=['assigned_driver'])
+        sea_vehicle = Vehicle.objects.create(
+            model_name='Report Seacraft Incident',
+            plate_number='SEA-INCIDENT-01',
+            vehicle_type=VehicleType.objects.create(name='MARINE'),
+        )
+        LogEntry.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Vehicle),
+            object_id=str(sea_vehicle.pk),
+            object_repr=str(sea_vehicle),
+            action_flag=CHANGE,
+            change_message=(
+                'Deployed asset unit to Honda Bay for Search and Rescue '
+                'with operator Last Assigned Sea Operator.'
+            ),
+        )
+        incident_time = timezone.localtime().replace(second=0, microsecond=0)
+        for vehicle, location, description in (
+            (self.vehicle, 'Puerto Princesa', 'Vehicle struck debris during response.'),
+            (sea_vehicle, 'Honda Bay', 'Vessel equipment was damaged during response.'),
+        ):
+            response = self.client.post(
+                reverse('dashboard_portal:fleet_report_incident'),
+                {
+                    'vehicle': vehicle.pk,
+                    'incident_type': 'DAMAGE',
+                    'occurred_at': incident_time.strftime('%Y-%m-%dT%H:%M'),
+                    'location': location,
+                    'description': description,
+                    'damage_details': 'Equipment damage recorded.',
+                },
+                follow=True,
+            )
+            self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+            self.assertContains(response, 'Incident report saved and added to fleet incident reports.')
+
+        incidents = {
+            incident.vehicle_id: incident
+            for incident in FleetIncident.objects.select_related('vehicle')
+        }
+        self.assertEqual(len(incidents), 2)
+        self.assertEqual(incidents[self.vehicle.pk].reported_by, self.user)
+        self.assertEqual(incidents[self.vehicle.pk].last_assigned_driver, 'Last Assigned Land Driver')
+        self.assertEqual(incidents[sea_vehicle.pk].last_assigned_driver, 'Last Assigned Sea Operator')
+
+        report_url = reverse('dashboard_portal:fleet_activity_report')
+        report_params = {
+            'report_kind': 'incident',
+            'period': 'day',
+            'day': timezone.localdate().isoformat(),
+        }
+        for report_format in ('print', 'csv', 'xlsx', 'pdf'):
+            with self.subTest(format=report_format):
+                report = self.client.get(
+                    report_url,
+                    {**report_params, 'format': report_format},
+                )
+                self.assertEqual(report.status_code, 200)
+                if report_format == 'print':
+                    self.assertContains(report, 'Incident Report')
+                    self.assertContains(report, 'Puerto Princesa')
+                    self.assertContains(report, 'Last Assigned Land Driver')
+                    self.assertContains(report, 'Last Assigned Sea Operator')
+                    self.assertContains(report, 'Provincial Disaster Risk Reduction and Management Office')
+                    self.assertContains(report, 'Prepared by / Date')
+                    self.assertContains(report, 'Print Incident Report')
+                elif report_format == 'csv':
+                    self.assertIn(b'Incident Report', report.content)
+                    self.assertIn(b'Puerto Princesa', report.content)
+                    self.assertIn(b'Last Assigned Land Driver', report.content)
+                    self.assertIn(b'Last Assigned Sea Operator', report.content)
+                elif report_format == 'xlsx':
+                    self.assertIn(
+                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        report['Content-Type'],
+                    )
+                    self.assertIn('fleet-incident-', report['Content-Disposition'])
+                    from openpyxl import load_workbook
+
+                    workbook = load_workbook(BytesIO(report.content), read_only=True)
+                    report_details = (
+                        workbook.active['E3'].value,
+                        workbook.active['E4'].value,
+                    )
+                    self.assertTrue(any('Puerto Princesa' in value for value in report_details))
+                    self.assertEqual(workbook.active['G3'].value, 'Last Assigned Sea Operator')
+                    self.assertEqual(workbook.active['G4'].value, 'Last Assigned Land Driver')
+                else:
+                    self.assertEqual(report['Content-Type'], 'application/pdf')
+                    self.assertTrue(report.content.startswith(b'%PDF'))
+                    self.assertIn('fleet-incident-', report['Content-Disposition'])
+
+    def test_damage_report_includes_logged_mechanic_faults(self):
+        LogEntry.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Vehicle),
+            object_id=str(self.vehicle.pk),
+            object_repr=str(self.vehicle),
+            action_flag=CHANGE,
+            change_message='Reported maintenance fault for Report Land Vehicle: Body / onboard equipment: Door damaged.',
+        )
+
+        response = self.client.get(
+            reverse('dashboard_portal:fleet_activity_report'),
+            {
+                'report_kind': 'damage',
+                'period': 'day',
+                'day': timezone.localdate().isoformat(),
+                'format': 'csv',
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'Damage / fault reported', response.content)
+        self.assertIn(b'Door damaged', response.content)
+
+    def test_seacraft_technician_cannot_report_incident_for_land_asset(self):
+        maritime_group = Group.objects.create(name='Maritime_Tech')
+        maritime_user = User.objects.create_user(username='incident_sea_tech')
+        maritime_user.groups.add(maritime_group)
+        self.client.force_login(maritime_user)
+
+        response = self.client.post(
+            reverse('dashboard_portal:fleet_report_incident'),
+            {
+                'vehicle': self.vehicle.pk,
+                'incident_type': 'DAMAGE',
+                'occurred_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+                'location': 'Test location',
+                'description': 'Unauthorized land asset incident.',
+                'damage_details': '',
+            },
+            follow=True,
+        )
+
+        self.assertFalse(FleetIncident.objects.exists())
+        self.assertContains(response, 'Fleet asset: Select a valid choice')
+
+    def test_unauthorized_user_cannot_submit_incident_report(self):
+        self.client.force_login(User.objects.create_user(username='blocked_incident_reporter'))
+
+        response = self.client.post(
+            reverse('dashboard_portal:fleet_report_incident'),
+            {
+                'vehicle': self.vehicle.pk,
+                'incident_type': 'DAMAGE',
+                'occurred_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+                'location': 'Test location',
+                'description': 'Unauthorized incident.',
+            },
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:homepage'))
+        self.assertFalse(FleetIncident.objects.exists())
 
 
 class DispatchDashboardAlignmentTests(TestCase):
@@ -574,6 +867,7 @@ class DispatchDashboardAlignmentTests(TestCase):
         self.assertContains(response, 'Standby &amp; Operational (1)')
         self.assertContains(response, 'Active Deployments (1)')
         self.assertContains(response, 'Maintenance &amp; Disposal (2)')
+        self.assertEqual(response.content.count(b'data-horizontal-card-scroll="true"'), 3)
 
     def test_seacraft_dispatch_header_actions_are_in_menu_drawer(self):
         self.client.force_login(self.seacraft_user)
@@ -589,6 +883,14 @@ class DispatchDashboardAlignmentTests(TestCase):
         self.assertContains(response, 'aria-label="Open seacraft dispatch menu"')
         self.assertContains(response, 'data-menu-action="generate-report"')
         self.assertContains(response, 'Generate Fleet Report')
+
+    def test_unauthorized_seacraft_dispatch_user_redirects_to_homepage(self):
+        unauthorized_user = User.objects.create_user(username='unauthorized_dispatch')
+        self.client.force_login(unauthorized_user)
+
+        response = self.client.get(reverse('dashboard_portal:seacraft_dispatch'))
+
+        self.assertRedirects(response, reverse('dashboard_portal:homepage'))
 
     def test_dispatch_deployment_details_are_visible_in_logistics_dashboard(self):
         craft = self.create_vehicle(
@@ -817,6 +1119,18 @@ class MechanicMaintenanceWorkflowTests(TestCase):
                 self.assertContains(response, 'value="custom">Custom date range')
                 self.assertContains(response, 'value="xlsx"')
                 self.assertContains(response, 'Regular maintenance (tires and oil)')
+
+    def test_unauthorized_mechanic_users_redirect_to_homepage(self):
+        unauthorized_user = User.objects.create_user(username='blocked_user')
+        self.client.force_login(unauthorized_user)
+
+        for dashboard in (
+            'dashboard_portal:repairman_dashboard',
+            'dashboard_portal:seacraft_dashboard',
+        ):
+            with self.subTest(dashboard=dashboard):
+                response = self.client.get(reverse(dashboard))
+                self.assertRedirects(response, reverse('dashboard_portal:homepage'))
 
     def test_mechanic_report_is_limited_to_its_asset_division(self):
         content_type = ContentType.objects.get_for_model(Vehicle)
