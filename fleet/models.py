@@ -10,7 +10,17 @@ class VehicleType(models.Model):
 
 
 class Driver(models.Model):
+    LICENSE_AUTHORITY_CHOICES = [
+        ('LTO', 'LTO - Land Transportation Office'),
+        ('MARINA', 'MARINA - Maritime Industry Authority'),
+    ]
+
     name = models.CharField(max_length=100, unique=True)
+    license_authority = models.CharField(
+        max_length=10,
+        choices=LICENSE_AUTHORITY_CHOICES,
+        default='LTO',
+    )
     license_number = models.CharField(max_length=50, blank=True, null=True)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     is_active = models.BooleanField(default=True)

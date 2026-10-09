@@ -1,0 +1,32 @@
+{% for event in deployment_events %}
+<tr>
+    <td class="ps-4 text-nowrap">
+        <div class="fw-semibold">{{ event.action_time|date:"M d, Y" }}</div>
+        <div class="small text-muted font-monospace">{{ event.action_time|date:"H:i" }}</div>
+    </td>
+    <td>
+        {% if event.change_message|slice:":8" == "Deployed" %}
+        <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-2">
+            <i class="fa-solid {% if event.asset_division == 'sea' %}fa-ship text-info{% else %}fa-truck text-warning{% endif %} me-1"></i>
+            <i class="fa-solid fa-arrow-up-right-from-square text-primary me-1"></i>DEPLOYED
+        </span>
+        {% else %}
+        <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-2">
+            <i class="fa-solid {% if event.asset_division == 'sea' %}fa-ship text-info{% else %}fa-truck text-warning{% endif %} me-1"></i>
+            <i class="fa-solid fa-arrow-rotate-left text-success me-1"></i>RETURNED
+        </span>
+        {% endif %}
+    </td>
+    <td class="fw-semibold text-dark">{{ event.object_repr }}</td>
+    <td class="text-secondary">{{ event.change_message }}</td>
+    <td class="pe-4">{{ event.user.username|default:"System" }}</td>
+</tr>
+{% empty %}
+<tr>
+    <td colspan="5" class="text-center py-5">
+        <i class="fa-solid fa-clipboard-check text-secondary fs-2 mb-3"></i>
+        <div class="fw-semibold text-dark">No deployment activity recorded yet</div>
+        <div class="small text-muted">Deployment and return events will appear here when assets are dispatched.</div>
+    </td>
+</tr>
+{% endfor %}

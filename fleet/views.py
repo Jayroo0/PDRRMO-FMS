@@ -6,6 +6,9 @@ from django.contrib.admin.models import LogEntry, CHANGE, ADDITION
 from django.contrib.contenttypes.models import ContentType          
 from django.db import transaction
 from django.db.models import Case, When, Value, IntegerField, Q
+from django.core.paginator import Paginator
+from django.http import JsonResponse
+from django.template.loader import render_to_string
 from django.utils.dateparse import parse_datetime
 from django.utils import timezone
 from .forms import (
@@ -262,12 +265,15 @@ def handle_mechanic_maintenance_action(request, vehicle):
 
 
 def seacraft_operator_filter():
-    return Q(license_number__istartswith='MAR-')
+    return Q(license_authority='MARINA') | Q(license_number__istartswith='MAR-')
 
 
 def vehicle_type_matches_operator(vehicle, driver):
     is_seacraft = vehicle.vehicle_type.name.strip().casefold() in {'marine', 'maritime'}
-    is_seacraft_operator = (driver.license_number or '').strip().upper().startswith('MAR-')
+    is_seacraft_operator = (
+        driver.license_authority == 'MARINA'
+        or (driver.license_number or '').strip().upper().startswith('MAR-')
+    )
     return is_seacraft == is_seacraft_operator
 
 
@@ -314,6 +320,57 @@ def homepage(request):
         'deployed_count': all_vehicles.filter(status='DEPLOYED').count(),
     }
     return render(request, 'fleet/homepage.html', context)
+
+
+def deployment_activity_log(request):
+    vehicle_content_type = ContentType.objects.get_for_model(Vehicle)
+    deployment_events = LogEntry.objects.filter(
+        content_type=vehicle_content_type,
+    ).filter(
+        Q(change_message__startswith='Deployed asset unit to ')
+        | Q(change_message='Returned asset unit back to operational depot storage.')
+    ).select_related('user').order_by('-action_time', '-pk')
+
+    paginator = Paginator(deployment_events, 25)
+    page = paginator.get_page(request.GET.get('page'))
+    page_events = list(page.object_list)
+    vehicle_by_id = {
+        str(vehicle.pk): vehicle
+        for vehicle in Vehicle.objects.filter(
+            pk__in=[event.object_id for event in page_events]
+        ).select_related('vehicle_type')
+    }
+    for event in page_events:
+        vehicle = vehicle_by_id.get(str(event.object_id))
+        event.asset_division = (
+            'sea'
+            if vehicle and vehicle.vehicle_type.name.strip().casefold() in {'marine', 'maritime'}
+            else 'land'
+        )
+
+    context = {
+        'deployment_page': page,
+        'deployment_events': page_events,
+        'deployment_event_count': paginator.count,
+        'deployment_page_signature': ','.join(str(event.pk) for event in page_events),
+    }
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({
+            'rows': render_to_string(
+                'fleet/_deployment_activity_rows.html',
+                context,
+                request=request,
+            ),
+            'pagination': render_to_string(
+                'fleet/_deployment_activity_pagination.html',
+                context,
+                request=request,
+            ),
+            'count': paginator.count,
+            'signature': context['deployment_page_signature'],
+        })
+
+    return render(request, 'fleet/deployment_activity_log.html', context)
 
 
 # =========================================================================
@@ -617,124 +674,6 @@ def logistics_dashboard(request):
                 for errors in form.errors.values():
                     for error in errors:
                         messages.error(request, error)
-            return redirect('dashboard_portal:logistics_dashboard')
-
-        if action == 'bulk_set_drivers':
-            assignment_prefixes = {
-                'operator_land_': False,
-                'operator_sea_': True,
-            }
-            assignments = []
-            for field_name, driver_id in request.POST.items():
-                prefix = next(
-                    (prefix for prefix in assignment_prefixes if field_name.startswith(prefix)),
-                    None,
-                )
-                if prefix is None:
-                    continue
-
-                vehicle_id_value = field_name[len(prefix):]
-                if not vehicle_id_value.isdecimal():
-                    messages.error(request, "Invalid fleet asset in operator assignment form.")
-                    return redirect('dashboard_portal:logistics_dashboard')
-
-                vehicle = Vehicle.objects.select_related('vehicle_type').filter(
-                    pk=vehicle_id_value,
-                ).first()
-                if vehicle is None or (
-                    assignment_prefixes[prefix]
-                    != (vehicle.vehicle_type.name.strip().casefold() in {'marine', 'maritime'})
-                ):
-                    messages.error(request, "An asset in the operator assignment form could not be verified.")
-                    return redirect('dashboard_portal:logistics_dashboard')
-                if vehicle.status in {'DEPLOYED', 'PENDING_DISPOSAL', 'ARCHIVED'}:
-                    messages.error(request, f"Operator assignments cannot be changed while '{vehicle.model_name}' is {vehicle.get_status_display().lower()}.")
-                    return redirect('dashboard_portal:logistics_dashboard')
-                assignments.append((vehicle, driver_id.strip()))
-
-            if not assignments:
-                messages.error(request, "There are no editable fleet operator assignments to save.")
-                return redirect('dashboard_portal:logistics_dashboard')
-
-            assignment_vehicle_ids = {vehicle.pk for vehicle, _ in assignments}
-            selected_driver_ids = [
-                driver_id for _, driver_id in assignments if driver_id
-            ]
-            if len(selected_driver_ids) != len(set(selected_driver_ids)):
-                messages.error(request, "Each operator can be assigned to only one fleet asset.")
-                return redirect('dashboard_portal:logistics_dashboard')
-
-            resolved_assignments = []
-            releasable_vehicle_ids = set()
-            for vehicle, driver_id in assignments:
-                driver = None
-                if driver_id:
-                    driver = Driver.objects.filter(pk=driver_id, is_active=True).first()
-                    if driver is None or not vehicle_type_matches_operator(vehicle, driver):
-                        messages.error(request, f"Select an active operator qualified for '{vehicle.model_name}'.")
-                        return redirect('dashboard_portal:logistics_dashboard')
-
-                    current_assignment = Vehicle.objects.filter(
-                        assigned_driver=driver,
-                    ).exclude(pk=vehicle.pk).first()
-                    if current_assignment and current_assignment.pk not in assignment_vehicle_ids:
-                        if current_assignment.status in {'MAINTENANCE', 'PENDING_DISPOSAL'}:
-                            releasable_vehicle_ids.add(current_assignment.pk)
-                        else:
-                            messages.error(
-                                request,
-                                f"Personnel '{driver.name}' is already assigned to active fleet asset '{current_assignment.model_name}'.",
-                            )
-                            return redirect('dashboard_portal:logistics_dashboard')
-                resolved_assignments.append((vehicle, driver))
-
-            changed_assignments = [
-                (vehicle, driver)
-                for vehicle, driver in resolved_assignments
-                if vehicle.assigned_driver_id != (driver.pk if driver else None)
-            ]
-            changed_vehicle_ids = {vehicle.pk for vehicle, _ in changed_assignments}
-
-            with transaction.atomic():
-                locked_vehicles = {
-                    vehicle.pk: vehicle
-                    for vehicle in Vehicle.objects.select_for_update().filter(
-                        pk__in=changed_vehicle_ids | releasable_vehicle_ids,
-                    )
-                }
-                for vehicle_id_to_clear in changed_vehicle_ids | releasable_vehicle_ids:
-                    vehicle_to_clear = locked_vehicles[vehicle_id_to_clear]
-                    if vehicle_to_clear.assigned_driver_id:
-                        vehicle_to_clear.assigned_driver = None
-                        vehicle_to_clear.save(update_fields=['assigned_driver'])
-
-                for vehicle, driver in changed_assignments:
-                    vehicle = locked_vehicles[vehicle.pk]
-                    vehicle.assigned_driver = driver
-                    vehicle.save(update_fields=['assigned_driver'])
-
-                for vehicle_id_to_clear in releasable_vehicle_ids:
-                    released_vehicle = locked_vehicles[vehicle_id_to_clear]
-                    log_action_to_admin(
-                        request,
-                        released_vehicle,
-                        CHANGE,
-                        "Released operator during bulk personnel assignment.",
-                    )
-
-                for vehicle, driver in changed_assignments:
-                    operator_name = driver.name if driver else 'Unassigned'
-                    log_action_to_admin(
-                        request,
-                        vehicle,
-                        CHANGE,
-                        f"Set personnel operator to {operator_name} via bulk assignment.",
-                    )
-
-            if changed_assignments or releasable_vehicle_ids:
-                messages.success(request, "All personnel operator assignments were saved.")
-            else:
-                messages.info(request, "No operator assignments were changed.")
             return redirect('dashboard_portal:logistics_dashboard')
 
         # ACTION A: DEPLOY VEHICLE (Requires Location, Purpose, Time, & Operator Validation)

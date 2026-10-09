@@ -1,0 +1,107 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployment Activity Log | PDRRMO Fleet Control Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{% static 'fleet/css/dashboard_theme.css' %}">
+</head>
+<body class="dashboard-shell bg-light">
+    <nav class="navbar navbar-dark px-4 py-3 shadow-sm" style="background-color: #0f172a; border-bottom: 4px solid #ea580c;">
+        <a href="{% url 'dashboard_portal:homepage' %}" class="navbar-brand fw-bold text-white text-decoration-none">
+            <i class="fa-solid fa-tower-broadcast text-warning me-2"></i>PDRRMO Fleet Control Center
+        </a>
+        <a href="{% url 'dashboard_portal:homepage' %}" class="btn btn-outline-light btn-sm fw-semibold">
+            <i class="fa-solid fa-arrow-left me-1"></i>Back to Public Homepage
+        </a>
+    </nav>
+
+    <main class="container py-5">
+        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+            <div>
+                <div class="text-uppercase small fw-bold text-primary mb-2">Operations Record</div>
+                <h1 class="h2 fw-bold text-dark mb-1">Deployment Activity Log</h1>
+                <p class="text-muted mb-0">Chronological record of fleet deployments and returns to base.</p>
+            </div>
+            <div class="text-end">
+                <div class="small text-muted text-uppercase fw-semibold">Recorded Activities</div>
+                <div id="deployment-event-count" class="h3 fw-bold font-monospace text-primary mb-0">{{ deployment_event_count }}</div>
+            </div>
+        </div>
+
+        <section class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-bottom py-3">
+                <h2 class="h6 fw-bold mb-0"><i class="fa-solid fa-clipboard-list text-primary me-2"></i>Deployment and Return Events</h2>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light text-uppercase small">
+                        <tr>
+                            <th scope="col" class="ps-4">Date &amp; Time</th>
+                            <th scope="col">Activity</th>
+                            <th scope="col">Fleet Asset</th>
+                            <th scope="col">Activity Details</th>
+                            <th scope="col" class="pe-4">Recorded By</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deployment-activity-rows" data-signature="{{ deployment_page_signature }}">
+                        {% include "fleet/_deployment_activity_rows.html" %}
+                    </tbody>
+                </table>
+            </div>
+            <div id="deployment-activity-pagination">
+                {% include "fleet/_deployment_activity_pagination.html" %}
+            </div>
+        </section>
+
+        <div class="d-flex justify-content-between align-items-center gap-3 small text-muted mt-3">
+            <span><i class="fa-solid fa-circle-info me-1"></i>Activity details reflect deployment records saved by the fleet system.</span>
+            <span id="deployment-refresh-status" class="text-nowrap" role="status" aria-live="polite">
+                <i class="fa-solid fa-rotate text-success me-1"></i>Live updates enabled
+            </span>
+        </div>
+    </main>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const rows = document.getElementById('deployment-activity-rows');
+            const pagination = document.getElementById('deployment-activity-pagination');
+            const count = document.getElementById('deployment-event-count');
+            const status = document.getElementById('deployment-refresh-status');
+            let refreshInProgress = false;
+
+            async function refreshDeploymentActivity() {
+                if (refreshInProgress || document.hidden) return;
+                refreshInProgress = true;
+                try {
+                    const refreshUrl = new URL(window.location.href);
+                    const response = await fetch(refreshUrl, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                        cache: 'no-store'
+                    });
+                    if (!response.ok) {
+                        throw new Error(`Refresh returned HTTP ${response.status}`);
+                    }
+                    const data = await response.json();
+                    if (rows.dataset.signature !== data.signature) {
+                        rows.innerHTML = data.rows;
+                        rows.dataset.signature = data.signature;
+                        pagination.innerHTML = data.pagination;
+                    }
+                    count.textContent = data.count;
+                    status.innerHTML = '<i class="fa-solid fa-rotate text-success me-1"></i>Live · checked just now';
+                } catch (error) {
+                    console.error('Unable to refresh deployment activity log:', error);
+                    status.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-warning me-1"></i>Refresh delayed; retrying';
+                } finally {
+                    refreshInProgress = false;
+                }
+            }
+
+            window.setInterval(refreshDeploymentActivity, 30000);
+        });
+    </script>
+</body>
+</html>

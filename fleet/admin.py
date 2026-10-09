@@ -36,8 +36,8 @@ class LogEntryAdmin(admin.ModelAdmin):
 # =========================================================================
 @admin.register(Driver)
 class DriverAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'license_number', 'phone_number', 'is_active')
-    list_filter = ('is_active',)
+    list_display = ('id', 'name', 'license_authority', 'license_number', 'phone_number', 'is_active')
+    list_filter = ('license_authority', 'is_active')
     search_fields = ('name', 'license_number', 'phone_number')
 
 

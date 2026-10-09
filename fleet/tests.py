@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 
 from django.contrib.auth.models import Group, User
@@ -42,6 +43,9 @@ class LoginViewTests(TestCase):
         self.assertContains(response, 'data-menu-action="add-operator"')
         self.assertContains(response, 'data-menu-action="add-asset"')
         self.assertContains(response, 'data-menu-action="print"')
+        self.assertNotContains(response, 'id_license_authority')
+        self.assertContains(response, 'Issuing authority is selected automatically from operator type.')
+        self.assertContains(response, 'license authority: ${authority} (automatic).')
 
 
 class DispatchDashboardAlignmentTests(TestCase):
@@ -74,16 +78,16 @@ class DispatchDashboardAlignmentTests(TestCase):
 
     def test_logistics_can_add_land_drivers_and_seacraft_operators(self):
         self.client.force_login(self.logistics_user)
-        for name, license_number in (
-            ('New Land Driver', 'LAND-100'),
-            ('New Sea Operator', 'MAR-100'),
+        for name, operator_type, license_number, expected_authority in (
+            ('New Land Driver', 'LAND', 'N01-23-456789', 'LTO'),
+            ('New Sea Operator', 'SEA', 'MRA-100', 'MARINA'),
         ):
             with self.subTest(operator=name):
                 response = self.client.post(
                     reverse('dashboard_portal:logistics_dashboard'),
                     {
                         'action': 'add_operator',
-                        'operator_type': 'SEA' if license_number.startswith('MAR-') else 'LAND',
+                        'operator_type': operator_type,
                         'name': name,
                         'license_number': license_number,
                         'phone_number': '555-0100',
@@ -91,26 +95,67 @@ class DispatchDashboardAlignmentTests(TestCase):
                 )
                 self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
                 operator = Driver.objects.get(name=name)
+                self.assertEqual(operator.license_authority, expected_authority)
                 self.assertEqual(operator.license_number, license_number)
                 self.assertEqual(operator.phone_number, '555-0100')
 
-    def test_logistics_rejects_operator_type_that_conflicts_with_license(self):
+    def test_logistics_sets_authority_from_operator_type_without_user_input(self):
+        self.client.force_login(self.logistics_user)
+        for operator_type, name, authority in (
+            ('SEA', 'Automatically Maritime Authority', 'MARINA'),
+            ('LAND', 'Automatically Land Authority', 'LTO'),
+        ):
+            with self.subTest(operator_type=operator_type):
+                response = self.client.post(
+                    reverse('dashboard_portal:logistics_dashboard'),
+                    {
+                        'action': 'add_operator',
+                        'operator_type': operator_type,
+                        'name': name,
+                        'license_number': 'TEST-123456',
+                        'license_authority': 'LTO' if operator_type == 'SEA' else 'MARINA',
+                    },
+                )
+
+                self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+                operator = Driver.objects.get(name=name)
+                self.assertEqual(operator.license_authority, authority)
+
+    def test_logistics_preserves_license_number_as_entered(self):
         self.client.force_login(self.logistics_user)
         response = self.client.post(
             reverse('dashboard_portal:logistics_dashboard'),
             {
                 'action': 'add_operator',
-                'operator_type': 'LAND',
-                'name': 'Misclassified Operator',
-                'license_number': 'MAR-200',
+                'operator_type': 'SEA',
+                'name': 'Marina License Operator',
+                'license_number': 'MRA-601',
             },
-            follow=True,
         )
 
-        self.assertContains(response, 'A seacraft license cannot be registered as a land driver.')
-        self.assertFalse(Driver.objects.filter(name='Misclassified Operator').exists())
+        self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+        operator = Driver.objects.get(name='Marina License Operator')
+        self.assertEqual(operator.license_authority, 'MARINA')
+        self.assertEqual(operator.license_number, 'MRA-601')
 
-    def test_operator_assignments_are_saved_together_from_one_floating_form(self):
+    def test_logistics_assignment_drawer_saves_on_dropdown_change(self):
+        self.create_vehicle(
+            model_name='Assignment Drawer Test Vehicle',
+            plate_number='LAND-DRAWER-01',
+            vehicle_type=self.land_type,
+        )
+        self.client.force_login(self.logistics_user)
+        response = self.client.get(reverse('dashboard_portal:logistics_dashboard'))
+
+        self.assertNotContains(response, 'Save All Operator Assignments')
+        self.assertContains(response, 'onchange="this.form.submit()"')
+        self.assertContains(response, 'name="action" value="set_driver"')
+
+    def test_logistics_dropdown_changes_save_land_and_seacraft_assignments(self):
+        land_operator = Driver.objects.create(
+            name='Bulk Land Operator',
+            license_number='LAND-500',
+        )
         land_vehicle = self.create_vehicle(
             model_name='Bulk Assigned Land Vehicle',
             plate_number='LAND-BULK-01',
@@ -121,61 +166,74 @@ class DispatchDashboardAlignmentTests(TestCase):
             plate_number='SEA-BULK-01',
             vehicle_type=self.marine_type,
         )
-        land_driver = Driver.objects.create(
-            name='Bulk Assignment Land Driver',
-            license_number='LAND-200',
-        )
         self.client.force_login(self.logistics_user)
 
-        dashboard = self.client.get(reverse('dashboard_portal:logistics_dashboard'))
-        self.assertContains(dashboard, 'id="operatorAssignmentModal"')
-        self.assertContains(dashboard, 'name="action" value="bulk_set_drivers"')
-        self.assertEqual(dashboard.content.decode().count('Save All Assignments'), 1)
-        self.assertNotContains(dashboard, 'id="operatorAssignmentDrawer"')
-
-        response = self.client.post(
+        land_response = self.client.post(
             reverse('dashboard_portal:logistics_dashboard'),
             {
-                'action': 'bulk_set_drivers',
-                f'operator_land_{land_vehicle.id}': str(land_driver.id),
-                f'operator_sea_{seacraft.id}': str(self.operator.id),
+                'action': 'set_driver',
+                'vehicle_id': land_vehicle.pk,
+                'driver_id': land_operator.pk,
+            },
+        )
+        sea_response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'set_driver',
+                'vehicle_id': seacraft.pk,
+                'driver_id': self.operator.pk,
             },
         )
 
-        self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+        self.assertRedirects(land_response, reverse('dashboard_portal:logistics_dashboard'))
+        self.assertRedirects(sea_response, reverse('dashboard_portal:logistics_dashboard'))
         land_vehicle.refresh_from_db()
         seacraft.refresh_from_db()
-        self.assertEqual(land_vehicle.assigned_driver, land_driver)
+        self.assertEqual(land_vehicle.assigned_driver, land_operator)
         self.assertEqual(seacraft.assigned_driver, self.operator)
 
-    def test_bulk_operator_assignment_rejects_duplicate_driver_without_partial_save(self):
-        first_craft = self.create_vehicle(
-            model_name='First Bulk Seacraft',
-            plate_number='SEA-BULK-02',
-            vehicle_type=self.marine_type,
+    def test_logistics_dropdown_rejects_operator_already_assigned_elsewhere(self):
+        first_vehicle = self.create_vehicle(
+            model_name='First Bulk Land Vehicle',
+            plate_number='LAND-BULK-02',
+            vehicle_type=self.land_type,
         )
-        second_craft = self.create_vehicle(
-            model_name='Second Bulk Seacraft',
-            plate_number='SEA-BULK-03',
-            vehicle_type=self.maritime_type,
+        second_vehicle = self.create_vehicle(
+            model_name='Second Bulk Land Vehicle',
+            plate_number='LAND-BULK-03',
+            vehicle_type=self.land_type,
+        )
+        land_operator = Driver.objects.create(
+            name='Duplicate Bulk Land Operator',
+            license_number='LAND-501',
         )
         self.client.force_login(self.logistics_user)
 
         response = self.client.post(
             reverse('dashboard_portal:logistics_dashboard'),
             {
-                'action': 'bulk_set_drivers',
-                f'operator_sea_{first_craft.id}': str(self.operator.id),
-                f'operator_sea_{second_craft.id}': str(self.operator.id),
+                'action': 'set_driver',
+                'vehicle_id': first_vehicle.pk,
+                'driver_id': land_operator.pk,
+            },
+        )
+        self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+
+        response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'set_driver',
+                'vehicle_id': second_vehicle.pk,
+                'driver_id': land_operator.pk,
             },
             follow=True,
         )
 
-        self.assertContains(response, 'Each operator can be assigned to only one fleet asset.')
-        first_craft.refresh_from_db()
-        second_craft.refresh_from_db()
-        self.assertIsNone(first_craft.assigned_driver)
-        self.assertIsNone(second_craft.assigned_driver)
+        self.assertContains(response, 'already assigned to active fleet asset')
+        first_vehicle.refresh_from_db()
+        second_vehicle.refresh_from_db()
+        self.assertEqual(first_vehicle.assigned_driver, land_operator)
+        self.assertIsNone(second_vehicle.assigned_driver)
 
     def test_seacraft_dispatch_can_add_only_maritime_operators(self):
         self.client.force_login(self.seacraft_user)
@@ -184,27 +242,31 @@ class DispatchDashboardAlignmentTests(TestCase):
             {
                 'action': 'add_operator',
                 'name': 'Dispatch Added Operator',
-                'license_number': 'MAR-300',
+                'license_number': 'MRA-300',
                 'phone_number': '555-0300',
             },
         )
 
         self.assertRedirects(response, reverse('dashboard_portal:seacraft_dispatch'))
         operator = Driver.objects.get(name='Dispatch Added Operator')
-        self.assertTrue(operator.license_number.startswith('MAR-'))
+        self.assertEqual(operator.license_authority, 'MARINA')
+        self.assertEqual(operator.license_number, 'MRA-300')
 
+    def test_seacraft_dispatch_assigns_marina_authority_automatically(self):
+        self.client.force_login(self.seacraft_user)
         response = self.client.post(
             reverse('dashboard_portal:seacraft_dispatch'),
             {
                 'action': 'add_operator',
-                'name': 'Invalid Dispatch Driver',
-                'license_number': 'LAND-300',
+                'name': 'Automatically Maritime Authority',
+                'license_number': 'MRA-301',
+                'license_authority': 'LTO',
             },
-            follow=True,
         )
 
-        self.assertContains(response, 'Seacraft operator licenses must start with MAR-.')
-        self.assertFalse(Driver.objects.filter(name='Invalid Dispatch Driver').exists())
+        self.assertRedirects(response, reverse('dashboard_portal:seacraft_dispatch'))
+        operator = Driver.objects.get(name='Automatically Maritime Authority')
+        self.assertEqual(operator.license_authority, 'MARINA')
 
     def test_maritime_asset_classification_matches_across_dashboards(self):
         marine_craft = self.create_vehicle(
@@ -241,6 +303,92 @@ class DispatchDashboardAlignmentTests(TestCase):
         for craft in (marine_craft, maritime_craft):
             self.assertContains(dispatch_response, craft.model_name)
         self.assertNotContains(dispatch_response, land_vehicle.model_name)
+
+    def test_public_homepage_links_to_deployment_activity_log(self):
+        response = self.client.get(reverse('dashboard_portal:homepage'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('dashboard_portal:deployment_activity_log'))
+        self.assertContains(response, 'Deployment Activity Log')
+
+    def test_public_deployment_activity_log_shows_deployment_and_return(self):
+        craft = self.create_vehicle(
+            model_name='Deployment History Craft',
+            plate_number='SEA-HISTORY-01',
+            vehicle_type=self.marine_type,
+        )
+        self.client.force_login(self.seacraft_user)
+        deploy_response = self.client.post(
+            reverse('dashboard_portal:seacraft_dispatch'),
+            {
+                'action': 'deploy_vehicle',
+                'vehicle_id': craft.pk,
+                'driver_id': self.operator.pk,
+                'deployment_location': 'Honda Bay',
+                'deployment_purpose': 'Search and Rescue',
+                'deployment_time': '2030-01-02T10:30',
+            },
+        )
+        self.assertRedirects(deploy_response, reverse('dashboard_portal:seacraft_dispatch'))
+
+        return_response = self.client.post(
+            reverse('dashboard_portal:seacraft_dispatch'),
+            {'action': 'return_vehicle', 'vehicle_id': craft.pk},
+        )
+        self.assertRedirects(return_response, reverse('dashboard_portal:seacraft_dispatch'))
+        self.client.logout()
+
+        response = self.client.get(reverse('dashboard_portal:deployment_activity_log'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Deployment Activity Log')
+        self.assertContains(response, 'Deployment History Craft')
+        self.assertContains(response, 'Honda Bay')
+        self.assertContains(response, 'Search and Rescue')
+        self.assertContains(response, 'RETURNED')
+        self.assertContains(response, 'fa-ship text-info')
+        self.assertContains(response, 'fa-arrow-up-right-from-square text-primary')
+        self.assertContains(response, 'fa-arrow-rotate-left text-success')
+        self.assertEqual(response.context['deployment_event_count'], 2)
+
+    def test_deployment_log_refresh_returns_partial_updates_without_page_reload(self):
+        land_vehicle = self.create_vehicle(
+            model_name='Deployment Refresh Land Asset',
+            plate_number='LAND-REFRESH-01',
+            vehicle_type=self.land_type,
+        )
+        land_driver = Driver.objects.create(
+            name='Deployment Refresh Driver',
+            license_number='LTO-123',
+        )
+        self.client.force_login(self.logistics_user)
+        self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'deploy_vehicle',
+                'vehicle_id': land_vehicle.pk,
+                'driver_id': land_driver.pk,
+                'deployment_location': 'Puerto Princesa',
+                'deployment_purpose': 'Logistics Support',
+                'deployment_time': '2030-01-02T10:30',
+            },
+        )
+
+        response = self.client.get(
+            reverse('dashboard_portal:deployment_activity_log'),
+            HTTP_X_REQUESTED_WITH='XMLHttpRequest',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = json.loads(response.content)
+        self.assertEqual(payload['count'], 1)
+        self.assertIn('Deployment Refresh Land Asset', payload['rows'])
+        self.assertIn('fa-truck text-warning', payload['rows'])
+        self.assertIn('fa-arrow-up-right-from-square text-primary', payload['rows'])
+        page_response = self.client.get(reverse('dashboard_portal:deployment_activity_log'))
+        self.assertContains(page_response, 'setInterval(refreshDeploymentActivity, 30000)')
+        self.assertContains(page_response, 'rows.dataset.signature !== data.signature')
+        self.assertContains(page_response, 'if (refreshInProgress || document.hidden) return')
 
     def test_seacraft_dispatch_uses_logistics_status_tabs(self):
         operational = self.create_vehicle(
@@ -280,6 +428,19 @@ class DispatchDashboardAlignmentTests(TestCase):
         self.assertContains(response, 'Standby &amp; Operational (1)')
         self.assertContains(response, 'Active Deployments (1)')
         self.assertContains(response, 'Maintenance &amp; Disposal (2)')
+
+    def test_seacraft_dispatch_header_actions_are_in_menu_drawer(self):
+        self.client.force_login(self.seacraft_user)
+
+        response = self.client.get(reverse('dashboard_portal:seacraft_dispatch'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'id="seacraftMenuDrawer"')
+        self.assertContains(response, 'data-menu-action="print"')
+        self.assertContains(response, 'data-menu-action="add-operator"')
+        self.assertContains(response, 'Connected to Dispatch Server')
+        self.assertContains(response, 'Log Out')
+        self.assertContains(response, 'aria-label="Open seacraft dispatch menu"')
 
     def test_dispatch_deployment_details_are_visible_in_logistics_dashboard(self):
         craft = self.create_vehicle(

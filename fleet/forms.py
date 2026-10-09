@@ -125,7 +125,10 @@ class OperatorDetailsForm(forms.ModelForm):
         fields = ('name', 'license_number', 'phone_number')
         widgets = {
             'name': forms.TextInput(attrs={'class': 'form-control'}),
-            'license_number': forms.TextInput(attrs={'class': 'form-control'}),
+            'license_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Enter license number',
+            }),
             'phone_number': forms.TelInput(attrs={'class': 'form-control'}),
         }
 
@@ -153,10 +156,15 @@ class OperatorDetailsForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         operator_type = self.allowed_operator_type or cleaned_data.get('operator_type')
-        license_number = cleaned_data.get('license_number', '')
-        is_seacraft_license = license_number.upper().startswith('MAR-')
-        if operator_type == 'SEA' and not is_seacraft_license:
-            self.add_error('license_number', 'Seacraft operator licenses must start with MAR-.')
-        elif operator_type == 'LAND' and is_seacraft_license:
-            self.add_error('license_number', 'A seacraft license cannot be registered as a land driver.')
+        if operator_type not in {'LAND', 'SEA'}:
+            self.add_error('operator_type', 'Choose land driver or seacraft operator.')
         return cleaned_data
+
+    def save(self, commit=True):
+        operator = super().save(commit=False)
+        operator_type = self.allowed_operator_type or self.cleaned_data['operator_type']
+        operator.license_authority = 'MARINA' if operator_type == 'SEA' else 'LTO'
+        if commit:
+            operator.save()
+            self.save_m2m()
+        return operator
