@@ -52,8 +52,27 @@ class FleetIncidentAdmin(admin.ModelAdmin):
         'location',
         'description',
         'damage_details',
+        'injury_details',
+        'witnesses',
+        'actions_taken',
+        'follow_up_recommendations',
     )
-    readonly_fields = ('vehicle', 'incident_type', 'occurred_at', 'location', 'description', 'damage_details', 'last_assigned_driver', 'reported_by', 'created_at')
+    readonly_fields = (
+        'vehicle',
+        'incident_type',
+        'occurred_at',
+        'location',
+        'description',
+        'damage_details',
+        'injury_status',
+        'injury_details',
+        'witnesses',
+        'actions_taken',
+        'follow_up_recommendations',
+        'last_assigned_driver',
+        'reported_by',
+        'created_at',
+    )
 
     def has_add_permission(self, request):
         return False

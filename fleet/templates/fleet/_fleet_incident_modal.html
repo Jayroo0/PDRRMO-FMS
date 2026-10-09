@@ -10,7 +10,7 @@
             <form method="post" action="{% url 'dashboard_portal:fleet_report_incident' %}">
                 {% csrf_token %}
                 <div class="modal-body">
-                    <p class="text-muted small">Select the asset and provide when, where, and what happened. Add known damage details if applicable.</p>
+                    <p class="text-muted small">Record when and where the incident occurred, what happened, any injuries or damage, and actions taken.</p>
                     <div class="alert alert-info py-2 small">
                         <i class="fa-solid fa-circle-info me-1"></i>
                         The incident report automatically records the asset's current or most recently recorded assigned driver.
@@ -40,6 +40,26 @@
                         <div class="col-12">
                             <label class="form-label fw-semibold" for="{{ incident_form.damage_details.id_for_label }}">{{ incident_form.damage_details.label }}</label>
                             {{ incident_form.damage_details }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="{{ incident_form.injury_status.id_for_label }}">{{ incident_form.injury_status.label }}</label>
+                            {{ incident_form.injury_status }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="{{ incident_form.injury_details.id_for_label }}">{{ incident_form.injury_details.label }}</label>
+                            {{ incident_form.injury_details }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="{{ incident_form.witnesses.id_for_label }}">{{ incident_form.witnesses.label }}</label>
+                            {{ incident_form.witnesses }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="{{ incident_form.actions_taken.id_for_label }}">{{ incident_form.actions_taken.label }}</label>
+                            {{ incident_form.actions_taken }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="{{ incident_form.follow_up_recommendations.id_for_label }}">{{ incident_form.follow_up_recommendations.label }}</label>
+                            {{ incident_form.follow_up_recommendations }}
                         </div>
                     </div>
                 </div>

@@ -126,6 +126,11 @@ class FleetIncidentForm(forms.ModelForm):
             'location',
             'description',
             'damage_details',
+            'injury_status',
+            'injury_details',
+            'witnesses',
+            'actions_taken',
+            'follow_up_recommendations',
         )
         widgets = {
             'vehicle': forms.Select(attrs={'class': 'form-select'}),
@@ -144,6 +149,27 @@ class FleetIncidentForm(forms.ModelForm):
                 'rows': 3,
                 'placeholder': 'Describe any known damage, or leave blank if none.',
             }),
+            'injury_status': forms.Select(attrs={'class': 'form-select'}),
+            'injury_details': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Describe injuries or medical assistance required, if any.',
+            }),
+            'witnesses': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Names or roles of witnesses, if known.',
+            }),
+            'actions_taken': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'For example, scene secured, assistance called, or asset taken out of service.',
+            }),
+            'follow_up_recommendations': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 3,
+                'placeholder': 'Repairs, investigation, or other follow-up required.',
+            }),
         }
         labels = {
             'vehicle': 'Fleet asset',
@@ -152,6 +178,11 @@ class FleetIncidentForm(forms.ModelForm):
             'location': 'Incident location',
             'description': 'What happened?',
             'damage_details': 'Damage details (optional)',
+            'injury_status': 'Were there injuries?',
+            'injury_details': 'Injury / medical assistance details (optional)',
+            'witnesses': 'Witnesses (optional)',
+            'actions_taken': 'Immediate actions taken (optional)',
+            'follow_up_recommendations': 'Follow-up recommendations (optional)',
         }
         help_texts = {
             'description': 'Include relevant details. Do not include unnecessary personal information.',
@@ -169,6 +200,17 @@ class FleetIncidentForm(forms.ModelForm):
                 'occurred_at',
                 timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
             )
+
+    def clean(self):
+        cleaned_data = super().clean()
+        injury_status = cleaned_data.get('injury_status')
+        injury_details = cleaned_data.get('injury_details', '').strip()
+        if injury_status == 'YES' and not injury_details:
+            self.add_error(
+                'injury_details',
+                'Describe the injuries or medical assistance required.',
+            )
+        return cleaned_data
 
 
 class OperatorDetailsForm(forms.ModelForm):

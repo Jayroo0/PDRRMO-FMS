@@ -126,6 +126,12 @@ class Vehicle(models.Model):
 
 
 class FleetIncident(models.Model):
+    INJURY_STATUS_CHOICES = [
+        ('NO', 'No injuries reported'),
+        ('YES', 'Injuries reported'),
+        ('UNKNOWN', 'Unknown / not confirmed'),
+    ]
+
     INCIDENT_TYPE_CHOICES = [
         ('ACCIDENT', 'Accident'),
         ('COLLISION', 'Collision'),
@@ -145,6 +151,15 @@ class FleetIncident(models.Model):
     location = models.CharField(max_length=255)
     description = models.TextField(max_length=2000)
     damage_details = models.TextField(max_length=2000, blank=True)
+    injury_status = models.CharField(
+        max_length=10,
+        choices=INJURY_STATUS_CHOICES,
+        default='UNKNOWN',
+    )
+    injury_details = models.TextField(max_length=2000, blank=True)
+    witnesses = models.TextField(max_length=1000, blank=True)
+    actions_taken = models.TextField(max_length=2000, blank=True)
+    follow_up_recommendations = models.TextField(max_length=2000, blank=True)
     last_assigned_driver = models.CharField(max_length=100, blank=True)
     reported_by = models.ForeignKey(
         User,

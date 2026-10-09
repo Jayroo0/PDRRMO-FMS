@@ -602,8 +602,14 @@ def logistics_generate_report(request):
                 f"{incident.get_incident_type_display()} — {incident.location}: "
                 f"{incident.description}"
             )
-            if incident.damage_details:
-                details += f" Damage: {incident.damage_details}"
+            details += " | " + " | ".join((
+                f"Injuries: {incident.get_injury_status_display()}",
+                f"Injury / medical details: {incident.injury_details or 'Not recorded'}",
+                f"Damage: {incident.damage_details or 'None reported'}",
+                f"Witnesses: {incident.witnesses or 'Not recorded'}",
+                f"Immediate actions: {incident.actions_taken or 'Not recorded'}",
+                f"Follow-up recommendations: {incident.follow_up_recommendations or 'Not recorded'}",
+            ))
             rows.append([
                 timezone.localtime(incident.occurred_at).strftime('%Y-%m-%d %H:%M'),
                 incident.get_incident_type_display(),

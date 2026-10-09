@@ -142,6 +142,10 @@ class LogisticsReportExportTests(TestCase):
         self.assertContains(response, 'value="damage">Damage and fault reports')
         self.assertContains(response, 'value="incident">Incident reports')
         self.assertContains(response, 'Report a fleet incident')
+        self.assertContains(response, 'name="injury_status"')
+        self.assertContains(response, 'name="witnesses"')
+        self.assertContains(response, 'name="actions_taken"')
+        self.assertContains(response, 'name="follow_up_recommendations"')
         self.assertContains(response, 'value="csv"')
         self.assertContains(response, 'value="xlsx"')
         self.assertContains(response, 'value="pdf"')
@@ -203,6 +207,10 @@ class LogisticsReportExportTests(TestCase):
                         'location': 'Incident test location',
                         'description': 'Incident filed by dashboard role.',
                         'damage_details': 'Test damage details.',
+                        'injury_status': 'NO',
+                        'witnesses': 'Dispatcher on duty',
+                        'actions_taken': 'Asset removed from service.',
+                        'follow_up_recommendations': 'Inspect before next deployment.',
                     },
                     follow=True,
                 )
@@ -361,6 +369,11 @@ class LogisticsReportExportTests(TestCase):
                     'location': location,
                     'description': description,
                     'damage_details': 'Equipment damage recorded.',
+                    'injury_status': 'YES',
+                    'injury_details': 'Operator assessed by the medical response team.',
+                    'witnesses': 'Response team lead',
+                    'actions_taken': 'Asset secured and supervisor notified.',
+                    'follow_up_recommendations': 'Complete maintenance inspection.',
                 },
                 follow=True,
             )
@@ -375,6 +388,19 @@ class LogisticsReportExportTests(TestCase):
         self.assertEqual(incidents[self.vehicle.pk].reported_by, self.user)
         self.assertEqual(incidents[self.vehicle.pk].last_assigned_driver, 'Last Assigned Land Driver')
         self.assertEqual(incidents[sea_vehicle.pk].last_assigned_driver, 'Last Assigned Sea Operator')
+        self.assertEqual(
+            incidents[self.vehicle.pk].injury_details,
+            'Operator assessed by the medical response team.',
+        )
+        self.assertEqual(incidents[self.vehicle.pk].witnesses, 'Response team lead')
+        self.assertEqual(
+            incidents[self.vehicle.pk].actions_taken,
+            'Asset secured and supervisor notified.',
+        )
+        self.assertEqual(
+            incidents[self.vehicle.pk].follow_up_recommendations,
+            'Complete maintenance inspection.',
+        )
 
         report_url = reverse('dashboard_portal:fleet_activity_report')
         report_params = {
@@ -397,11 +423,23 @@ class LogisticsReportExportTests(TestCase):
                     self.assertContains(report, 'Provincial Disaster Risk Reduction and Management Office')
                     self.assertContains(report, 'Prepared by / Date')
                     self.assertContains(report, 'Print Incident Report')
+                    self.assertContains(report, 'Witnesses')
+                    self.assertContains(report, 'Response team lead')
+                    self.assertContains(report, 'Operator assessed by the medical response team.')
+                    self.assertContains(report, 'Asset secured and supervisor notified.')
+                    self.assertContains(report, 'Complete maintenance inspection.')
                 elif report_format == 'csv':
                     self.assertIn(b'Incident Report', report.content)
                     self.assertIn(b'Puerto Princesa', report.content)
                     self.assertIn(b'Last Assigned Land Driver', report.content)
                     self.assertIn(b'Last Assigned Sea Operator', report.content)
+                    self.assertIn(
+                        b'Injury / medical details: Operator assessed by the medical response team.',
+                        report.content,
+                    )
+                    self.assertIn(b'Witnesses: Response team lead', report.content)
+                    self.assertIn(b'Immediate actions: Asset secured and supervisor notified.', report.content)
+                    self.assertIn(b'Follow-up recommendations: Complete maintenance inspection.', report.content)
                 elif report_format == 'xlsx':
                     self.assertIn(
                         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -418,10 +456,40 @@ class LogisticsReportExportTests(TestCase):
                     self.assertTrue(any('Puerto Princesa' in value for value in report_details))
                     self.assertEqual(workbook.active['G3'].value, 'Last Assigned Sea Operator')
                     self.assertEqual(workbook.active['G4'].value, 'Last Assigned Land Driver')
+                    self.assertIn('Witnesses: Response team lead', workbook.active['E4'].value)
+                    self.assertIn(
+                        'Operator assessed by the medical response team.',
+                        workbook.active['E4'].value,
+                    )
+                    self.assertIn(
+                        'Immediate actions: Asset secured and supervisor notified.',
+                        workbook.active['E4'].value,
+                    )
                 else:
                     self.assertEqual(report['Content-Type'], 'application/pdf')
                     self.assertTrue(report.content.startswith(b'%PDF'))
                     self.assertIn('fleet-incident-', report['Content-Disposition'])
+
+    def test_incident_form_requires_details_when_injuries_are_reported(self):
+        response = self.client.post(
+            reverse('dashboard_portal:fleet_report_incident'),
+            {
+                'vehicle': self.vehicle.pk,
+                'incident_type': 'ACCIDENT',
+                'occurred_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
+                'location': 'Test location',
+                'description': 'Incident requiring injury details.',
+                'injury_status': 'YES',
+                'injury_details': '',
+            },
+            follow=True,
+        )
+
+        self.assertContains(
+            response,
+            'Describe the injuries or medical assistance required.',
+        )
+        self.assertFalse(FleetIncident.objects.exists())
 
     def test_damage_report_includes_logged_mechanic_faults(self):
         LogEntry.objects.create(
@@ -462,6 +530,7 @@ class LogisticsReportExportTests(TestCase):
                 'location': 'Test location',
                 'description': 'Unauthorized land asset incident.',
                 'damage_details': '',
+                'injury_status': 'NO',
             },
             follow=True,
         )
@@ -480,6 +549,7 @@ class LogisticsReportExportTests(TestCase):
                 'occurred_at': timezone.localtime().strftime('%Y-%m-%dT%H:%M'),
                 'location': 'Test location',
                 'description': 'Unauthorized incident.',
+                'injury_status': 'NO',
             },
         )
 

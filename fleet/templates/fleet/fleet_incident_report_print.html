@@ -175,7 +175,11 @@
     <article class="incident">
         <div class="incident-title">
             <h2>Incident {{ forloop.counter|stringformat:"03d" }}</h2>
-            <span class="incident-type">{{ incident.get_incident_type_display }}</span>
+            <span>
+                <span class="field-label">Reference</span>
+                <strong>IR-{{ incident.occurred_at|date:"Y" }}-{{ incident.pk|stringformat:"06d" }}</strong>
+                &nbsp; <span class="incident-type">{{ incident.get_incident_type_display }}</span>
+            </span>
         </div>
         <div class="incident-body">
             <div class="details-grid">
@@ -203,13 +207,37 @@
                     <span class="field-label">Reported by</span>
                     <div class="field-value">{% if incident.reported_by %}{{ incident.reported_by.get_full_name|default:incident.reported_by.username }}{% else %}System{% endif %}</div>
                 </div>
+                <div>
+                    <span class="field-label">Report submitted</span>
+                    <div class="field-value">{{ incident.created_at|date:"F j, Y g:i A" }}</div>
+                </div>
                 <div class="wide">
                     <span class="field-label">Incident description</span>
                     <div class="field-value">{{ incident.description }}</div>
                 </div>
+                <div>
+                    <span class="field-label">Injuries reported</span>
+                    <div class="field-value">{{ incident.get_injury_status_display }}</div>
+                </div>
+                <div>
+                    <span class="field-label">Injury / medical assistance details</span>
+                    <div class="field-value">{{ incident.injury_details|default:"Not recorded" }}</div>
+                </div>
                 <div class="wide">
                     <span class="field-label">Damage or affected equipment</span>
                     <div class="field-value">{{ incident.damage_details|default:"None reported" }}</div>
+                </div>
+                <div class="wide">
+                    <span class="field-label">Witnesses</span>
+                    <div class="field-value">{{ incident.witnesses|default:"Not recorded" }}</div>
+                </div>
+                <div class="wide">
+                    <span class="field-label">Immediate actions taken</span>
+                    <div class="field-value">{{ incident.actions_taken|default:"Not recorded" }}</div>
+                </div>
+                <div class="wide">
+                    <span class="field-label">Follow-up recommendations</span>
+                    <div class="field-value">{{ incident.follow_up_recommendations|default:"Not recorded" }}</div>
                 </div>
             </div>
             <div class="signatures">
