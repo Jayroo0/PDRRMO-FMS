@@ -14,22 +14,6 @@
         .nav-header { background-color: #1A365D; border-bottom: 4px solid #0EA5E9; }
         .table-theme th { background-color: #0EA5E9 !important; color: white !important; }
         
-        /* 🌟 Custom Styling for smooth slider colors matching dashboard status rules */
-        .custom-switch .form-check-input {
-            width: 3rem;
-            height: 1.5rem;
-            cursor: pointer;
-            background-color: #10B981; /* Default/Unchecked: Green for Operational */
-            border-color: #10B981;
-        }
-        .custom-switch .form-check-input:checked {
-            background-color: #DC2626; /* Checked: Red/Amber for Maintenance */
-            border-color: #DC2626;
-        }
-        .custom-switch .form-check-input:focus {
-            box-shadow: none;
-            border-color: rgba(0, 0, 0, 0.1);
-        }
     </style>
     <link rel="stylesheet" href="{% static 'fleet/css/dashboard_theme.css' %}">
 </head>
@@ -78,7 +62,7 @@
                             <th>Equipment Unit</th>
                             <th>Identifier Tag</th>
                             <th>Current Status</th>
-                            <th class="text-end text-sm-start" style="padding-right: 2.5rem;">Action Diagnostic Toggle Override</th>
+                            <th>Maintenance action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -101,6 +85,10 @@
                                         <span style="height: 10px; width: 10px; background-color: #DC2626; border-radius: 50%; display: inline-block;"></span>
                                         MAINTENANCE
                                     </div>
+                                    <div class="small mt-2 text-danger-emphasis">
+                                        <strong>User-reported fault:</strong>
+                                        {{ vehicle.maintenance_problem|default:"No fault description recorded." }}
+                                    </div>
                                 {% elif vehicle.status == 'PENDING_DISPOSAL' %}
                                     <div class="border px-3 py-1.5 rounded d-inline-flex align-items-center gap-2 bg-light text-dark fw-semibold" style="min-width: 160px; height: 38px; font-size: 0.875rem;">
                                         <span style="height: 10px; width: 10px; background-color: #F59E0B; border-radius: 50%; display: inline-block;"></span>
@@ -121,6 +109,24 @@
                             <td>
                                 <div class="dashboard-row-actions">
                                     {% if vehicle.status == 'MAINTENANCE' %}
+                                        <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="border rounded bg-light p-3 mb-2">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
+                                            <input type="hidden" name="action_type" value="COMPLETE_MAINTENANCE">
+                                            <fieldset>
+                                                <legend class="fs-6 fw-bold">Return-to-service checklist</legend>
+                                                <p class="small text-muted">Check every item only after verifying it. All checks are required.</p>
+                                                {% for value, label in maintenance_checklist %}
+                                                    <div class="form-check mb-1">
+                                                        <input class="form-check-input" type="checkbox" name="maintenance_checklist" value="{{ value }}" id="land_{{ vehicle.id }}_{{ value }}" required>
+                                                        <label class="form-check-label" for="land_{{ vehicle.id }}_{{ value }}">{{ label }}</label>
+                                                    </div>
+                                                {% endfor %}
+                                            </fieldset>
+                                            <button type="submit" class="btn btn-sm btn-success mt-2">
+                                                <i class="fa-solid fa-clipboard-check me-1"></i> Complete checks &amp; return to service
+                                            </button>
+                                        </form>
                                         <form action="{% url 'dashboard_portal:repairman_dashboard' %}" method="POST" class="m-0" onsubmit="return captureWorkshopDisposalRemarks(this);">
                                             {% csrf_token %}
                                             <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
@@ -159,31 +165,20 @@
                                                 <span>Undo Disposal</span>
                                             </button>
                                         </form>
-                                    {% endif %}
-
-                                    {% if vehicle.status != 'PENDING_DISPOSAL' %}
-                                    <form method="POST" action="{% url 'dashboard_portal:repairman_dashboard' %}" class="land-status-toggle form-check form-switch custom-switch d-flex align-items-center gap-3 m-0">
+                                    {% elif vehicle.status == 'OPERATIONAL' or vehicle.status == 'DEPLOYED' %}
+                                        <form method="POST" action="{% url 'dashboard_portal:repairman_dashboard' %}" class="border rounded bg-light p-3">
                                         {% csrf_token %}
                                         <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                        <input type="hidden" name="action_type" value="STATUS_TOGGLE">
-                                        
-                                        <input type="hidden" name="status" id="real_status_{{ vehicle.id }}" value="{% if vehicle.status == 'MAINTENANCE' %}OPERATIONAL{% else %}MAINTENANCE{% endif %}">
-                                        
-                                        <input 
-                                            type="checkbox" 
-                                            class="form-check-input mt-0"
-                                            {% if vehicle.status == 'MAINTENANCE' %}checked{% endif %}
-                                            onchange="this.form.submit()"
-                                        >
-                                        
-                                        <span class="fw-bold text-uppercase tracking-wider text-muted small" style="min-width: 110px;">
-                                            {% if vehicle.status == 'MAINTENANCE' %}
-                                                <span class="text-danger">Maintenance</span>
-                                            {% else %}
-                                                <span class="text-success">Operational</span>
-                                            {% endif %}
-                                        </span>
+                                        <input type="hidden" name="action_type" value="REPORT_FAULT">
+                                        <label for="land_fault_{{ vehicle.id }}" class="form-label fw-bold">What fault or symptom did the user report?</label>
+                                        <textarea id="land_fault_{{ vehicle.id }}" name="fault_description" class="form-control" rows="3" maxlength="1000" placeholder="Describe the issue and when it occurs." required></textarea>
+                                        <div class="form-text mb-2">A fault description is required before this unit can enter maintenance.</div>
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="fa-solid fa-screwdriver-wrench me-1"></i> Record fault &amp; move to maintenance
+                                        </button>
                                     </form>
+                                    {% else %}
+                                        <span class="text-muted small">No mechanic action is available for this status.</span>
                                     {% endif %}
                                 </div>
                             </td>
@@ -259,24 +254,6 @@
             return true;
         }
     </script>
-
-    <script>
-    // 🌟 Handles the checkbox conversion safely before form submission
-    function submitToggle(checkboxElement, vehicleId) {
-        const hiddenInput = document.getElementById('status_submit_' + vehicleId);
-        
-        // If the box is checked, we want to push it into MAINTENANCE.
-        // If the box is unchecked, we force the string value back to OPERATIONAL!
-        if (checkboxElement.checked) {
-            hiddenInput.value = "MAINTENANCE";
-        } else {
-            hiddenInput.value = "OPERATIONAL";
-        }
-        
-        // Dispatches the complete payload straight to views.py
-        checkboxElement.form.submit();
-    }
-</script>
 
 </body>
 </html>

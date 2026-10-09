@@ -366,6 +366,10 @@
                                         <td>
                                             {% if craft.status == 'MAINTENANCE' %}
                                                 <span class="badge bg-danger">MAINTENANCE</span>
+                                                <div class="small text-danger-emphasis mt-1">
+                                                    <strong>User-reported fault:</strong>
+                                                    {{ craft.maintenance_problem|default:"No fault description recorded." }}
+                                                </div>
                                             {% elif craft.status == 'PENDING_DISPOSAL' %}
                                                 <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
                                                 <div class="small text-danger mt-1">

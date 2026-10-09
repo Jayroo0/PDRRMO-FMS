@@ -239,6 +239,11 @@
                                         {% endif %}
                                     </div>
                                     <div class="mb-2"><span class="badge bg-secondary font-monospace">{{ vehicle.plate_number }}</span></div>
+
+                                    <div class="small text-danger-emphasis border rounded bg-danger-subtle p-2 mb-3">
+                                        <strong>User-reported fault:</strong>
+                                        {{ vehicle.maintenance_problem|default:"No fault description recorded." }}
+                                    </div>
                                     
                                     <div class="mb-3 small">
                                         <span class="text-muted d-block small">Originally Assigned Operator:</span>
@@ -413,6 +418,11 @@
                                         {% endif %}
                                     </div>
                                     <div class="mb-2"><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></div>
+
+                                    <div class="small text-danger-emphasis border rounded bg-danger-subtle p-2 mb-3">
+                                        <strong>User-reported fault:</strong>
+                                        {{ craft.maintenance_problem|default:"No fault description recorded." }}
+                                    </div>
                                     
                                     <div class="mb-3 small">
                                         <span class="text-muted d-block small">Originally Assigned Operator:</span>

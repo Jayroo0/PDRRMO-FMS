@@ -84,6 +84,7 @@ class Vehicle(models.Model):
 
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='OPERATIONAL')
 
+    maintenance_problem = models.CharField(max_length=1000, blank=True)
     assigned_driver = models.OneToOneField(
         Driver,
         on_delete=models.SET_NULL,

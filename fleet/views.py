@@ -100,6 +100,88 @@ def seacraft_vehicle_type_filter():
     )
 
 
+LAND_MAINTENANCE_CHECKLIST = (
+    ('repairs_complete', 'Required repairs are complete'),
+    ('safety_systems_checked', 'Safety systems have been checked'),
+    ('fluids_battery_tires_checked', 'Fluids, battery, and tires have been checked'),
+    ('test_run_passed', 'Operational test run passed'),
+    ('no_unresolved_issues', 'No unresolved safety or operating issues remain'),
+)
+
+SEACRAFT_MAINTENANCE_CHECKLIST = (
+    ('repairs_complete', 'Required repairs are complete'),
+    ('safety_systems_checked', 'Safety equipment has been checked'),
+    ('propulsion_fuel_hull_checked', 'Engine, fuel, bilge, and hull have been checked'),
+    ('test_run_passed', 'Sea trial passed'),
+    ('no_unresolved_issues', 'No unresolved safety or operating issues remain'),
+)
+
+
+def maintenance_checklist_for_vehicle(vehicle):
+    if vehicle.vehicle_type and vehicle.vehicle_type.name.upper() in {'MARINE', 'MARITIME'}:
+        return SEACRAFT_MAINTENANCE_CHECKLIST
+    return LAND_MAINTENANCE_CHECKLIST
+
+
+def handle_mechanic_maintenance_action(request, vehicle):
+    action_type = request.POST.get('action_type')
+
+    if action_type == 'REPORT_FAULT':
+        if vehicle.status not in {'OPERATIONAL', 'DEPLOYED'}:
+            messages.error(request, f"{vehicle.model_name} must be operational or deployed before a new maintenance fault can be reported.")
+            return
+
+        fault_description = request.POST.get('fault_description', '').strip()
+        if not fault_description:
+            messages.error(request, "Describe the user-reported fault before moving this asset to maintenance.")
+            return
+        if len(fault_description) > 1000:
+            messages.error(request, "The fault description must be 1,000 characters or fewer.")
+            return
+
+        vehicle.status = 'MAINTENANCE'
+        vehicle.maintenance_problem = fault_description
+        vehicle.assigned_driver = None
+        vehicle.deployment_location = None
+        vehicle.deployment_purpose = None
+        vehicle.deployment_time = None
+        vehicle.save()
+        log_action_to_admin(
+            request,
+            vehicle,
+            CHANGE,
+            f"Reported maintenance fault for {vehicle.model_name}: {fault_description}",
+        )
+        messages.success(request, f"Fault recorded. {vehicle.model_name} is now in maintenance.")
+        return
+
+    if action_type == 'COMPLETE_MAINTENANCE':
+        if vehicle.status != 'MAINTENANCE':
+            messages.error(request, f"{vehicle.model_name} must be in maintenance before it can be returned to service.")
+            return
+
+        checklist = maintenance_checklist_for_vehicle(vehicle)
+        checked_items = set(request.POST.getlist('maintenance_checklist'))
+        required_items = {item[0] for item in checklist}
+        if not required_items.issubset(checked_items):
+            messages.error(request, "Complete every maintenance checklist item before returning this asset to operational status.")
+            return
+
+        vehicle.status = 'OPERATIONAL'
+        vehicle.maintenance_problem = ''
+        vehicle.save()
+        log_action_to_admin(
+            request,
+            vehicle,
+            CHANGE,
+            f"Completed maintenance checklist and returned {vehicle.model_name} to operational status.",
+        )
+        messages.success(request, f"Checklist complete. {vehicle.model_name} is operational.")
+        return
+
+    messages.error(request, "Unsupported mechanic action. Use the fault report or maintenance checklist.")
+
+
 def seacraft_operator_filter():
     return Q(license_number__istartswith='MAR-')
 
@@ -214,10 +296,13 @@ def repairman_dashboard(request):
 
     if request.method == 'POST':
         vehicle_id = request.POST.get('vehicle_id')
-        action_type = request.POST.get('action_type', 'STATUS_TOGGLE')
+        action_type = request.POST.get('action_type')
         
         if vehicle_id:
-            vehicle = get_object_or_404(Vehicle, id=vehicle_id)
+            vehicle = get_object_or_404(
+                Vehicle.objects.exclude(seacraft_vehicle_type_filter()),
+                id=vehicle_id,
+            )
             
             if action_type == 'FLAG_DISPOSAL':
                 if vehicle.status != 'MAINTENANCE':
@@ -261,16 +346,7 @@ def repairman_dashboard(request):
                 messages.success(request, f"Disposal reason updated for {vehicle.model_name}.")
             
             else:
-                new_status = request.POST.get('status')
-                if vehicle.status == 'PENDING_DISPOSAL':
-                    messages.error(request, "Use the cancel disposal action to return this asset to maintenance.")
-                elif new_status in ['OPERATIONAL', 'MAINTENANCE']:
-                    if new_status == 'MAINTENANCE' and vehicle.assigned_driver:
-                        vehicle.assigned_driver = None
-                    
-                    vehicle.status = new_status
-                    vehicle.save()
-                    messages.success(request, f"Status for {vehicle.model_name} updated successfully.")
+                handle_mechanic_maintenance_action(request, vehicle)
                     
             return redirect('dashboard_portal:repairman_dashboard')
 
@@ -291,7 +367,10 @@ def repairman_dashboard(request):
     )
     vehicles = add_disposal_reasons(vehicles)
     
-    return render(request, 'fleet/repairman_dashboard.html', {'vehicles': vehicles})
+    return render(request, 'fleet/repairman_dashboard.html', {
+        'vehicles': vehicles,
+        'maintenance_checklist': LAND_MAINTENANCE_CHECKLIST,
+    })
 
 
 # =========================================================================
@@ -312,10 +391,13 @@ def seacraft_dashboard(request):
 
     if request.method == 'POST':
         vehicle_id = request.POST.get('vehicle_id')
-        action_type = request.POST.get('action_type', 'STATUS_TOGGLE')
+        action_type = request.POST.get('action_type')
         
         if vehicle_id:
-            vehicle = get_object_or_404(Vehicle, id=vehicle_id)
+            vehicle = get_object_or_404(
+                Vehicle.objects.filter(seacraft_vehicle_type_filter()),
+                id=vehicle_id,
+            )
             
             if action_type == 'FLAG_DISPOSAL':
                 if vehicle.status != 'MAINTENANCE':
@@ -359,16 +441,7 @@ def seacraft_dashboard(request):
                 messages.success(request, f"Disposal reason updated for {vehicle.model_name}.")
             
             else:
-                new_status = request.POST.get('status')
-                if vehicle.status == 'PENDING_DISPOSAL':
-                    messages.error(request, "Use the cancel disposal action to return this vessel to maintenance.")
-                elif new_status in ['OPERATIONAL', 'MAINTENANCE']:
-                    if new_status == 'MAINTENANCE' and vehicle.assigned_driver:
-                        vehicle.assigned_driver = None
-                    
-                    vehicle.status = new_status
-                    vehicle.save()
-                    messages.success(request, f"Status for {vehicle.model_name} updated successfully.")
+                handle_mechanic_maintenance_action(request, vehicle)
             
             return redirect('dashboard_portal:seacraft_dashboard')
 
@@ -391,7 +464,10 @@ def seacraft_dashboard(request):
     )
     vehicles = add_disposal_reasons(vehicles)
 
-    return render(request, 'fleet/seacraft_dashboard.html', {'vehicles': vehicles})
+    return render(request, 'fleet/seacraft_dashboard.html', {
+        'vehicles': vehicles,
+        'maintenance_checklist': SEACRAFT_MAINTENANCE_CHECKLIST,
+    })
 
 
 # =========================================================================
@@ -638,7 +714,7 @@ def seacraft_dispatch_view(request):
         return redirect("homepage")
 
     if request.method == "POST":
-        action = request.POST.get("action") or request.POST.get("action_type", "STATUS_TOGGLE")
+        action = request.POST.get("action") or request.POST.get("action_type")
         vehicle = get_object_or_404(
             Vehicle.objects.filter(seacraft_vehicle_type_filter()),
             id=request.POST.get("vehicle_id"),
@@ -796,17 +872,6 @@ def seacraft_dispatch_view(request):
             log_action_to_admin(request, vehicle, CHANGE, f"Rejected disposal request. Returned to maintenance array: {vehicle.model_name}")
             messages.info(request, f"Disposal declined. {vehicle.model_name} reverted to MAINTENANCE status.")
 
-        elif action == "STATUS_TOGGLE":
-            if vehicle.status in {"DEPLOYED", "PENDING_DISPOSAL", "ARCHIVED"}:
-                messages.error(request, f"Status for '{vehicle.model_name}' cannot be changed through this action.")
-                return redirect("dashboard_portal:seacraft_dispatch")
-            new_status = request.POST.get("status")
-            if new_status in ["OPERATIONAL", "MAINTENANCE"]:
-                vehicle.status = new_status
-                vehicle.save()
-                messages.success(request, f"Status for {vehicle.model_name} updated.")
-            else:
-                messages.error(request, "Select a valid seacraft status.")
         else:
             messages.error(request, "Unsupported seacraft dispatch action.")
 

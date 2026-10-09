@@ -258,3 +258,184 @@ class DispatchDashboardAlignmentTests(TestCase):
         self.assertIsNone(operational_craft.deployment_location)
         self.assertIsNone(operational_craft.deployment_purpose)
         self.assertIsNone(operational_craft.deployment_time)
+
+
+class MechanicMaintenanceWorkflowTests(TestCase):
+    def setUp(self):
+        self.land_type = VehicleType.objects.create(name='LAND')
+        self.marine_type = VehicleType.objects.create(name='MARINE')
+        technician_group = Group.objects.create(name='Technicians')
+        maritime_group = Group.objects.create(name='Maritime_Tech')
+        self.land_mechanic = User.objects.create_user(
+            username='land_mechanic',
+            password='SecurePass123!',
+        )
+        self.land_mechanic.groups.add(technician_group)
+        self.sea_mechanic = User.objects.create_user(
+            username='sea_mechanic',
+            password='SecurePass123!',
+        )
+        self.sea_mechanic.groups.add(maritime_group)
+        self.land_vehicle = Vehicle.objects.create(
+            model_name='Land Work Vehicle',
+            plate_number='LAND-WORK-01',
+            vehicle_type=self.land_type,
+        )
+        self.seacraft = Vehicle.objects.create(
+            model_name='Sea Work Vessel',
+            plate_number='SEA-WORK-01',
+            vehicle_type=self.marine_type,
+        )
+
+    def post_as_mechanic(self, vehicle, action, *, is_seacraft=False, **data):
+        user = self.sea_mechanic if is_seacraft else self.land_mechanic
+        url_name = 'dashboard_portal:seacraft_dashboard' if is_seacraft else 'dashboard_portal:repairman_dashboard'
+        self.client.force_login(user)
+        return self.client.post(
+            reverse(url_name),
+            {'vehicle_id': vehicle.id, 'action_type': action, **data},
+        )
+
+    def test_fault_description_is_required_before_maintenance(self):
+        for vehicle, is_seacraft in (
+            (self.land_vehicle, False),
+            (self.seacraft, True),
+        ):
+            with self.subTest(asset=vehicle.model_name):
+                self.post_as_mechanic(vehicle, 'REPORT_FAULT', is_seacraft=is_seacraft, fault_description='   ')
+                vehicle.refresh_from_db()
+                self.assertEqual(vehicle.status, 'OPERATIONAL')
+                self.assertEqual(vehicle.maintenance_problem, '')
+
+    def test_fault_report_moves_asset_to_maintenance_and_persists_fault(self):
+        for vehicle, is_seacraft in (
+            (self.land_vehicle, False),
+            (self.seacraft, True),
+        ):
+            with self.subTest(asset=vehicle.model_name):
+                self.post_as_mechanic(
+                    vehicle,
+                    'REPORT_FAULT',
+                    is_seacraft=is_seacraft,
+                    fault_description='Engine makes a loud grinding noise.',
+                )
+                vehicle.refresh_from_db()
+                self.assertEqual(vehicle.status, 'MAINTENANCE')
+                self.assertEqual(vehicle.maintenance_problem, 'Engine makes a loud grinding noise.')
+
+    def test_reporting_a_deployed_fault_clears_dispatch_assignment(self):
+        driver = Driver.objects.create(name='Assigned Land Operator')
+        self.land_vehicle.status = 'DEPLOYED'
+        self.land_vehicle.assigned_driver = driver
+        self.land_vehicle.deployment_location = 'Test location'
+        self.land_vehicle.deployment_purpose = 'Test deployment'
+        self.land_vehicle.save()
+
+        self.post_as_mechanic(
+            self.land_vehicle,
+            'REPORT_FAULT',
+            fault_description='The brakes make a grinding noise.',
+        )
+
+        self.land_vehicle.refresh_from_db()
+        self.assertEqual(self.land_vehicle.status, 'MAINTENANCE')
+        self.assertIsNone(self.land_vehicle.assigned_driver)
+        self.assertIsNone(self.land_vehicle.deployment_location)
+        self.assertIsNone(self.land_vehicle.deployment_purpose)
+
+    def test_every_asset_specific_checklist_item_is_required(self):
+        for vehicle, is_seacraft in (
+            (self.land_vehicle, False),
+            (self.seacraft, True),
+        ):
+            with self.subTest(asset=vehicle.model_name):
+                vehicle.status = 'MAINTENANCE'
+                vehicle.maintenance_problem = 'User reported a fault.'
+                vehicle.save()
+                self.post_as_mechanic(
+                    vehicle,
+                    'COMPLETE_MAINTENANCE',
+                    is_seacraft=is_seacraft,
+                    maintenance_checklist=['repairs_complete'],
+                )
+                vehicle.refresh_from_db()
+                self.assertEqual(vehicle.status, 'MAINTENANCE')
+                self.assertEqual(vehicle.maintenance_problem, 'User reported a fault.')
+
+    def test_complete_checklist_returns_land_and_sea_assets_to_service(self):
+        checklist_values = (
+            'repairs_complete',
+            'safety_systems_checked',
+            'fluids_battery_tires_checked',
+            'propulsion_fuel_hull_checked',
+            'test_run_passed',
+            'no_unresolved_issues',
+        )
+        for vehicle, is_seacraft in (
+            (self.land_vehicle, False),
+            (self.seacraft, True),
+        ):
+            with self.subTest(asset=vehicle.model_name):
+                vehicle.status = 'MAINTENANCE'
+                vehicle.maintenance_problem = 'User reported a fault.'
+                vehicle.save()
+                self.post_as_mechanic(
+                    vehicle,
+                    'COMPLETE_MAINTENANCE',
+                    is_seacraft=is_seacraft,
+                    maintenance_checklist=checklist_values,
+                )
+                vehicle.refresh_from_db()
+                self.assertEqual(vehicle.status, 'OPERATIONAL')
+                self.assertEqual(vehicle.maintenance_problem, '')
+
+    def test_legacy_status_toggle_cannot_bypass_mechanic_workflow(self):
+        for vehicle, is_seacraft in (
+            (self.land_vehicle, False),
+            (self.seacraft, True),
+        ):
+            with self.subTest(asset=vehicle.model_name):
+                self.post_as_mechanic(
+                    vehicle,
+                    'STATUS_TOGGLE',
+                    is_seacraft=is_seacraft,
+                    status='MAINTENANCE',
+                )
+                vehicle.refresh_from_db()
+                self.assertEqual(vehicle.status, 'OPERATIONAL')
+
+    def test_seacraft_dispatch_cannot_bypass_maintenance_checklist(self):
+        self.seacraft.status = 'MAINTENANCE'
+        self.seacraft.maintenance_problem = 'User reported a fault.'
+        self.seacraft.save()
+        self.client.force_login(self.sea_mechanic)
+
+        self.client.post(
+            reverse('dashboard_portal:seacraft_dispatch'),
+            {
+                'vehicle_id': self.seacraft.id,
+                'action': 'STATUS_TOGGLE',
+                'status': 'OPERATIONAL',
+            },
+        )
+
+        self.seacraft.refresh_from_db()
+        self.assertEqual(self.seacraft.status, 'MAINTENANCE')
+        self.assertEqual(self.seacraft.maintenance_problem, 'User reported a fault.')
+
+    def test_mechanic_pages_show_fault_prompt_and_no_status_toggles(self):
+        for user, vehicle, url_name in (
+            (self.land_mechanic, self.land_vehicle, 'dashboard_portal:repairman_dashboard'),
+            (self.sea_mechanic, self.seacraft, 'dashboard_portal:seacraft_dashboard'),
+        ):
+            with self.subTest(asset=vehicle.model_name):
+                self.client.force_login(user)
+                response = self.client.get(reverse(url_name))
+                self.assertContains(response, 'What fault or symptom did the user report?')
+                vehicle.status = 'MAINTENANCE'
+                vehicle.maintenance_problem = 'User-reported test fault.'
+                vehicle.save()
+                response = self.client.get(reverse(url_name))
+                self.assertContains(response, 'Return-to-service checklist')
+                self.assertContains(response, 'User-reported test fault.')
+                self.assertNotContains(response, 'STATUS_TOGGLE')
