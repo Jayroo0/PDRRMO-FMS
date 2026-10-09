@@ -1,7 +1,8 @@
 from django import forms
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils import timezone
-from .models import Driver, FleetIncident, Vehicle
+from .models import Driver, FleetIncident, Vehicle, VehicleType
 
 
 LAND_MAINTENANCE_CHECKLIST = (
@@ -211,6 +212,230 @@ class FleetIncidentForm(forms.ModelForm):
                 'Describe the injuries or medical assistance required.',
             )
         return cleaned_data
+
+
+class SeacraftRegistrationForm(forms.ModelForm):
+    class Meta:
+        model = Vehicle
+        fields = (
+            'model_name',
+            'plate_number',
+            'vehicle_type',
+            'hull_type',
+            'length_m',
+            'passenger_capacity',
+            'engine_details',
+            'fuel_type',
+            'registration_expiry',
+            'inspection_expiry',
+        )
+        widgets = {
+            'model_name': forms.TextInput(attrs={
+                'class': 'form-control',
+                'maxlength': 100,
+                'autocomplete': 'off',
+            }),
+            'plate_number': forms.TextInput(attrs={
+                'class': 'form-control',
+                'maxlength': 50,
+                'autocomplete': 'off',
+            }),
+            'vehicle_type': forms.Select(attrs={'class': 'form-select'}),
+            'hull_type': forms.TextInput(attrs={
+                'class': 'form-control',
+                'maxlength': 100,
+                'placeholder': 'For example, RHIB or banca',
+            }),
+            'length_m': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0.01',
+                'max': '99999.99',
+                'step': '0.01',
+            }),
+            'passenger_capacity': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '1',
+                'max': '2147483647',
+                'step': '1',
+            }),
+            'engine_details': forms.TextInput(attrs={
+                'class': 'form-control',
+                'maxlength': 200,
+                'placeholder': 'Make, model, and horsepower',
+            }),
+            'fuel_type': forms.TextInput(attrs={
+                'class': 'form-control',
+                'maxlength': 50,
+                'placeholder': 'For example, diesel or gasoline',
+            }),
+            'registration_expiry': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }),
+            'inspection_expiry': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }),
+        }
+        labels = {
+            'model_name': 'Seacraft name',
+            'plate_number': 'Hull ID',
+            'vehicle_type': 'Seacraft type',
+            'hull_type': 'Hull type',
+            'length_m': 'Length (m)',
+            'passenger_capacity': 'Passenger capacity',
+            'engine_details': 'Engine',
+            'fuel_type': 'Fuel type',
+            'registration_expiry': 'Registration expiry',
+            'inspection_expiry': 'Inspection expiry',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['vehicle_type'].queryset = VehicleType.objects.filter(
+            Q(name__iexact='MARINE') | Q(name__iexact='MARITIME')
+        ).order_by('name')
+        self.fields['vehicle_type'].error_messages['invalid_choice'] = (
+            'Choose a valid seacraft type.'
+        )
+        self.fields['plate_number'].error_messages['unique'] = (
+            'This hull ID is already registered.'
+        )
+        for name, field in self.fields.items():
+            field.required = name in {
+                'model_name',
+                'plate_number',
+                'vehicle_type',
+            }
+
+    def clean_length_m(self):
+        length = self.cleaned_data.get('length_m')
+        if length is not None and length <= 0:
+            raise ValidationError('Enter a length greater than zero.')
+        return length
+
+    def clean_passenger_capacity(self):
+        capacity = self.cleaned_data.get('passenger_capacity')
+        if capacity is not None and capacity < 1:
+            raise ValidationError('Passenger capacity must be at least one.')
+        return capacity
+
+
+class FleetAssetRegistrationForm(forms.ModelForm):
+    class Meta:
+        model = Vehicle
+        fields = (
+            'model_name',
+            'plate_number',
+            'vehicle_type',
+            'make',
+            'model_year',
+            'color',
+            'engine_details',
+            'fuel_type',
+            'passenger_capacity',
+            'odometer_km',
+            'registration_expiry',
+            'inspection_expiry',
+            'hull_type',
+            'length_m',
+        )
+        widgets = {
+            'model_name': forms.TextInput(attrs={'class': 'form-control', 'maxlength': 100}),
+            'plate_number': forms.TextInput(attrs={'class': 'form-control', 'maxlength': 50}),
+            'vehicle_type': forms.Select(attrs={'class': 'form-select'}),
+            'make': forms.TextInput(attrs={'class': 'form-control', 'maxlength': 100}),
+            'model_year': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 1900,
+                'max': timezone.localdate().year,
+                'step': 1,
+            }),
+            'color': forms.TextInput(attrs={'class': 'form-control', 'maxlength': 50}),
+            'engine_details': forms.TextInput(attrs={
+                'class': 'form-control',
+                'maxlength': 200,
+                'placeholder': 'Engine make / model',
+            }),
+            'fuel_type': forms.TextInput(attrs={
+                'class': 'form-control',
+                'maxlength': 50,
+                'placeholder': 'Gasoline, diesel, etc.',
+            }),
+            'passenger_capacity': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 1,
+                'step': 1,
+            }),
+            'odometer_km': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': 0,
+                'step': '0.1',
+            }),
+            'registration_expiry': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }),
+            'inspection_expiry': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }),
+            'hull_type': forms.TextInput(attrs={'class': 'form-control', 'maxlength': 100}),
+            'length_m': forms.NumberInput(attrs={
+                'class': 'form-control',
+                'min': '0.01',
+                'step': '0.01',
+            }),
+        }
+        labels = {
+            'model_name': 'Asset name',
+            'plate_number': 'Plate number or hull ID',
+            'vehicle_type': 'Asset type',
+            'make': 'Make',
+            'model_year': 'Year',
+            'color': 'Color',
+            'engine_details': 'Engine',
+            'fuel_type': 'Fuel type',
+            'passenger_capacity': 'Seating / passenger capacity',
+            'odometer_km': 'Odometer (km)',
+            'registration_expiry': 'Registration expiry',
+            'inspection_expiry': 'Inspection expiry',
+            'hull_type': 'Hull type',
+            'length_m': 'Length (m)',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['vehicle_type'].empty_label = 'Choose an asset type'
+        for name in ('model_name', 'plate_number', 'vehicle_type'):
+            self.fields[name].required = True
+        self.fields['plate_number'].error_messages['unique'] = (
+            'This plate number or hull ID is already registered.'
+        )
+
+    def clean_model_year(self):
+        year = self.cleaned_data.get('model_year')
+        if year is not None and (year < 1900 or year > timezone.localdate().year):
+            raise ValidationError('Enter a valid year from 1900 through this year.')
+        return year
+
+    def clean_odometer_km(self):
+        odometer = self.cleaned_data.get('odometer_km')
+        if odometer is not None and odometer < 0:
+            raise ValidationError('Odometer reading cannot be negative.')
+        return odometer
+
+    def clean_passenger_capacity(self):
+        capacity = self.cleaned_data.get('passenger_capacity')
+        if capacity is not None and capacity < 1:
+            raise ValidationError('Capacity must be at least one.')
+        return capacity
+
+    def clean_length_m(self):
+        length = self.cleaned_data.get('length_m')
+        if length is not None and length <= 0:
+            raise ValidationError('Length must be greater than zero.')
+        return length
 
 
 class OperatorDetailsForm(forms.ModelForm):

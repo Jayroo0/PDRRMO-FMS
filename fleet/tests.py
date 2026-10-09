@@ -1,8 +1,9 @@
 import json
 from datetime import datetime, timedelta
+from decimal import Decimal
 from io import BytesIO
 
-from django.contrib.admin.models import CHANGE, LogEntry
+from django.contrib.admin.models import ADDITION, CHANGE, LogEntry
 from django.contrib.auth.models import Group, User
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -47,7 +48,7 @@ class LoginViewTests(TestCase):
         self.assertContains(response, 'data-menu-action="add-asset"')
         self.assertContains(response, 'data-menu-action="print"')
         self.assertNotContains(response, 'id_license_authority')
-        self.assertContains(response, 'Issuing authority is selected automatically from operator type.')
+        self.assertContains(response, 'Enter the license as shown.')
         self.assertContains(response, 'license authority: ${authority} (automatic).')
         self.assertContains(response, 'data-menu-action="generate-report"')
         self.assertContains(response, 'Generate Fleet Report')
@@ -55,7 +56,132 @@ class LoginViewTests(TestCase):
         self.assertContains(response, 'Add a fleet asset')
         self.assertContains(response, 'Plate number or hull ID')
         self.assertContains(response, 'Choose an asset type')
-        self.assertContains(response, 'Register asset')
+        for field_name in ('make', 'model_year', 'color', 'engine_details', 'fuel_type', 'passenger_capacity', 'odometer_km'):
+            self.assertContains(response, f'name="asset-0-{field_name}"')
+        self.assertContains(response, 'Add another asset')
+        self.assertContains(response, 'Register assets')
+
+    def test_logistics_can_register_multiple_land_assets_at_once(self):
+        group = Group.objects.create(name='Logistics Officers')
+        user = User.objects.create_user(username='multi_asset_logistics')
+        user.groups.add(group)
+        land_type = VehicleType.objects.create(name='LAND')
+        self.client.force_login(user)
+        payload = {
+            'action': 'add_vehicle',
+            'asset_count': '2',
+        }
+        for index, (name, plate) in enumerate((
+            ('Rescue Unit One', 'LAND-BULK-01'),
+            ('Rescue Unit Two', 'LAND-BULK-02'),
+        )):
+            prefix = f'asset-{index}-'
+            payload.update({
+                prefix + 'model_name': name,
+                prefix + 'plate_number': plate,
+                prefix + 'vehicle_type': str(land_type.pk),
+                prefix + 'make': 'Toyota',
+                prefix + 'model_year': '2024',
+                prefix + 'odometer_km': '0',
+            })
+
+        response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            payload,
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+        self.assertContains(response, '2 fleet assets have been registered.')
+        self.assertEqual(Vehicle.objects.filter(plate_number__startswith='LAND-BULK-').count(), 2)
+
+    def test_logistics_bulk_registration_is_all_or_nothing_for_duplicate_ids(self):
+        group = Group.objects.create(name='Logistics Officers')
+        user = User.objects.create_user(username='multi_asset_duplicate')
+        user.groups.add(group)
+        land_type = VehicleType.objects.create(name='LAND')
+        self.client.force_login(user)
+        payload = {'action': 'add_vehicle', 'asset_count': '2'}
+        for index, name in enumerate(('Rescue Unit One', 'Rescue Unit Two')):
+            prefix = f'asset-{index}-'
+            payload.update({
+                prefix + 'model_name': name,
+                prefix + 'plate_number': 'LAND-BULK-DUP',
+                prefix + 'vehicle_type': str(land_type.pk),
+            })
+
+        response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            payload,
+            follow=True,
+        )
+
+        self.assertContains(response, 'Each asset must have a different plate number or hull ID.')
+        self.assertFalse(Vehicle.objects.filter(plate_number='LAND-BULK-DUP').exists())
+
+    def test_logistics_registers_land_asset_details_and_displays_them(self):
+        group = Group.objects.create(name='Logistics Officers')
+        user = User.objects.create_user(username='land_asset_logistics')
+        user.groups.add(group)
+        land_type = VehicleType.objects.create(name='LAND')
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'add_vehicle',
+                'model_name': 'Land Rescue Unit',
+                'plate_number': 'LAND-SPECS-01',
+                'vehicle_type': land_type.pk,
+                'make': 'Toyota',
+                'model_year': '2024',
+                'color': 'White',
+                'engine_details': '2.8L diesel',
+                'fuel_type': 'Diesel',
+                'passenger_capacity': '8',
+                'odometer_km': '12450.5',
+                'registration_expiry': '2027-04-30',
+                'inspection_expiry': '2027-03-31',
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:logistics_dashboard'))
+        vehicle = Vehicle.objects.get(plate_number='LAND-SPECS-01')
+        self.assertEqual(vehicle.make, 'Toyota')
+        self.assertEqual(vehicle.model_year, 2024)
+        self.assertEqual(vehicle.color, 'White')
+        self.assertEqual(vehicle.engine_details, '2.8L diesel')
+        self.assertEqual(vehicle.fuel_type, 'Diesel')
+        self.assertEqual(vehicle.passenger_capacity, 8)
+        self.assertEqual(vehicle.odometer_km, Decimal('12450.5'))
+        self.assertEqual(vehicle.registration_expiry.isoformat(), '2027-04-30')
+        self.assertEqual(vehicle.inspection_expiry.isoformat(), '2027-03-31')
+        self.assertContains(response, 'Toyota')
+        self.assertContains(response, '12450.5 km')
+        self.assertContains(response, 'Registration due Apr 2027')
+
+    def test_logistics_land_asset_registration_rejects_future_model_year(self):
+        group = Group.objects.create(name='Logistics Officers')
+        user = User.objects.create_user(username='land_asset_validation')
+        user.groups.add(group)
+        land_type = VehicleType.objects.create(name='LAND')
+        self.client.force_login(user)
+
+        response = self.client.post(
+            reverse('dashboard_portal:logistics_dashboard'),
+            {
+                'action': 'add_vehicle',
+                'model_name': 'Future Model Vehicle',
+                'plate_number': 'LAND-FUTURE-01',
+                'vehicle_type': land_type.pk,
+                'model_year': str(timezone.localdate().year + 1),
+            },
+            follow=True,
+        )
+
+        self.assertContains(response, 'Enter a valid year from 1900 through this year.')
+        self.assertFalse(Vehicle.objects.filter(plate_number='LAND-FUTURE-01').exists())
 
     def test_asset_onboarding_rejects_missing_or_duplicate_details_with_friendly_message(self):
         group = Group.objects.create(name='Logistics Officers')
@@ -760,6 +886,138 @@ class DispatchDashboardAlignmentTests(TestCase):
         operator = Driver.objects.get(name='Dispatch Added Operator')
         self.assertEqual(operator.license_authority, 'MARINA')
         self.assertEqual(operator.license_number, 'MRA-300')
+
+    def test_seacraft_dispatch_can_register_seacraft_from_menu(self):
+        self.client.force_login(self.seacraft_user)
+        dashboard = self.client.get(reverse('dashboard_portal:seacraft_dispatch'))
+
+        self.assertContains(dashboard, 'data-menu-action="add-seacraft"')
+        self.assertContains(dashboard, 'id="addSeacraftModal"')
+        self.assertContains(dashboard, 'modal-dialog-centered modal-dialog-scrollable')
+        self.assertContains(dashboard, '#addSeacraftModal .modal-content > form > .modal-body')
+        self.assertContains(dashboard, f'value="{self.marine_type.pk}">MARINE</option>')
+        self.assertNotContains(dashboard, f'value="{self.land_type.pk}">LAND</option>')
+        for field_name in (
+            'hull_type',
+            'length_m',
+            'passenger_capacity',
+            'engine_details',
+            'fuel_type',
+            'registration_expiry',
+            'inspection_expiry',
+        ):
+            self.assertContains(dashboard, f'name="craft-0-{field_name}"')
+        self.assertContains(dashboard, 'Add another seacraft')
+
+        response = self.client.post(
+            reverse('dashboard_portal:seacraft_dispatch'),
+            {
+                'action': 'add_seacraft',
+                'model_name': 'New Dispatch Vessel',
+                'plate_number': 'SEA-NEW-01',
+                'vehicle_type': self.marine_type.pk,
+                'hull_type': 'Rigid-hulled inflatable boat',
+                'length_m': '7.25',
+                'passenger_capacity': '12',
+                'engine_details': 'Yamaha 150 HP',
+                'fuel_type': 'Gasoline',
+                'registration_expiry': '2027-06-30',
+                'inspection_expiry': '2027-04-15',
+            },
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:seacraft_dispatch'))
+        self.assertContains(response, "Seacraft &#x27;New Dispatch Vessel&#x27; registered.")
+        craft = Vehicle.objects.get(plate_number='SEA-NEW-01')
+        self.assertEqual(craft.model_name, 'New Dispatch Vessel')
+        self.assertEqual(craft.vehicle_type, self.marine_type)
+        self.assertEqual(craft.status, 'OPERATIONAL')
+        self.assertEqual(craft.hull_type, 'Rigid-hulled inflatable boat')
+        self.assertEqual(craft.length_m, Decimal('7.25'))
+        self.assertEqual(craft.passenger_capacity, 12)
+        self.assertEqual(craft.engine_details, 'Yamaha 150 HP')
+        self.assertEqual(craft.fuel_type, 'Gasoline')
+        self.assertEqual(craft.registration_expiry.isoformat(), '2027-06-30')
+        self.assertEqual(craft.inspection_expiry.isoformat(), '2027-04-15')
+        self.assertContains(response, 'Rigid-hulled inflatable boat')
+        self.assertContains(response, 'Yamaha 150 HP')
+        self.assertContains(response, '12 passengers')
+        self.assertTrue(
+            LogEntry.objects.filter(
+                content_type=ContentType.objects.get_for_model(Vehicle),
+                object_id=str(craft.pk),
+                action_flag=ADDITION,
+            ).exists()
+        )
+
+    def test_seacraft_dispatch_can_register_multiple_seacrafts_at_once(self):
+        self.client.force_login(self.seacraft_user)
+        payload = {'action': 'add_seacraft', 'craft_count': '2'}
+        for index, (name, hull_id) in enumerate((
+            ('Dispatch Vessel One', 'SEA-BULK-01'),
+            ('Dispatch Vessel Two', 'SEA-BULK-02'),
+        )):
+            prefix = f'craft-{index}-'
+            payload.update({
+                prefix + 'model_name': name,
+                prefix + 'plate_number': hull_id,
+                prefix + 'vehicle_type': str(self.marine_type.pk),
+                prefix + 'hull_type': 'Patrol boat',
+                prefix + 'length_m': '8.5',
+            })
+
+        response = self.client.post(
+            reverse('dashboard_portal:seacraft_dispatch'),
+            payload,
+            follow=True,
+        )
+
+        self.assertRedirects(response, reverse('dashboard_portal:seacraft_dispatch'))
+        self.assertContains(response, '2 seacrafts registered.')
+        self.assertEqual(
+            Vehicle.objects.filter(plate_number__startswith='SEA-BULK-').count(),
+            2,
+        )
+
+    def test_seacraft_dispatch_rejects_land_type_when_registering_craft(self):
+        self.client.force_login(self.seacraft_user)
+
+        response = self.client.post(
+            reverse('dashboard_portal:seacraft_dispatch'),
+            {
+                'action': 'add_seacraft',
+                'model_name': 'Invalid Land Entry',
+                'plate_number': 'SEA-INVALID-01',
+                'vehicle_type': self.land_type.pk,
+            },
+            follow=True,
+        )
+
+        self.assertContains(response, 'Choose a valid seacraft type.')
+        self.assertFalse(Vehicle.objects.filter(plate_number='SEA-INVALID-01').exists())
+
+    def test_seacraft_dispatch_rejects_duplicate_hull_id(self):
+        self.create_vehicle(
+            model_name='Existing Seacraft',
+            plate_number='SEA-DUPLICATE-01',
+            vehicle_type=self.marine_type,
+        )
+        self.client.force_login(self.seacraft_user)
+
+        response = self.client.post(
+            reverse('dashboard_portal:seacraft_dispatch'),
+            {
+                'action': 'add_seacraft',
+                'model_name': 'Duplicate Seacraft',
+                'plate_number': 'SEA-DUPLICATE-01',
+                'vehicle_type': self.maritime_type.pk,
+            },
+            follow=True,
+        )
+
+        self.assertContains(response, 'Hull ID: This hull ID is already registered.')
+        self.assertEqual(Vehicle.objects.filter(plate_number='SEA-DUPLICATE-01').count(), 1)
 
     def test_seacraft_dispatch_assigns_marina_authority_automatically(self):
         self.client.force_login(self.seacraft_user)

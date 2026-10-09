@@ -10,10 +10,9 @@
             <form method="post" action="{% url 'dashboard_portal:fleet_report_incident' %}">
                 {% csrf_token %}
                 <div class="modal-body">
-                    <p class="text-muted small">Record when and where the incident occurred, what happened, any injuries or damage, and actions taken.</p>
                     <div class="alert alert-info py-2 small">
                         <i class="fa-solid fa-circle-info me-1"></i>
-                        The incident report automatically records the asset's current or most recently recorded assigned driver.
+                        Assigned driver is recorded automatically.
                     </div>
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -35,7 +34,6 @@
                         <div class="col-12">
                             <label class="form-label fw-semibold" for="{{ incident_form.description.id_for_label }}">{{ incident_form.description.label }}</label>
                             {{ incident_form.description }}
-                            <div class="form-text">{{ incident_form.description.help_text }}</div>
                         </div>
                         <div class="col-12">
                             <label class="form-label fw-semibold" for="{{ incident_form.damage_details.id_for_label }}">{{ incident_form.damage_details.label }}</label>

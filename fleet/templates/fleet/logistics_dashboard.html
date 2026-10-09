@@ -178,6 +178,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ vehicle.model_name }}</h5>
                                             <div class="text-muted small">{{ vehicle.vehicle_type.name }}</div>
+                                            {% include "fleet/_land_vehicle_specs.html" with vehicle=vehicle %}
                                         </div>
                                         <span class="badge bg-success">OPERATIONAL</span>
                                     </div>
@@ -221,6 +222,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ vehicle.model_name }}</h5>
                                             <div class="text-muted small">{{ vehicle.vehicle_type.name }}</div>
+                                            {% include "fleet/_land_vehicle_specs.html" with vehicle=vehicle %}
                                         </div>
                                         <span class="badge bg-primary">DEPLOYED</span>
                                     </div>
@@ -262,6 +264,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ vehicle.model_name }}</h5>
                                             <div class="text-muted small">{{ vehicle.vehicle_type.name }}</div>
+                                            {% include "fleet/_land_vehicle_specs.html" with vehicle=vehicle %}
                                         </div>
                                         {% if vehicle.status == 'PENDING_DISPOSAL' %}
                                             <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
@@ -357,6 +360,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ craft.model_name }}</h5>
                                             <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                            {% include "fleet/_seacraft_specs.html" with craft=craft %}
                                         </div>
                                         <span class="badge bg-success">OPERATIONAL</span>
                                     </div>
@@ -400,6 +404,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ craft.model_name }}</h5>
                                             <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                            {% include "fleet/_seacraft_specs.html" with craft=craft %}
                                         </div>
                                         <span class="badge bg-primary">DEPLOYED</span>
                                     </div>
@@ -441,6 +446,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ craft.model_name }}</h5>
                                             <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                            {% include "fleet/_seacraft_specs.html" with craft=craft %}
                                         </div>
                                         {% if craft.status == 'PENDING_DISPOSAL' %}
                                             <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
@@ -512,7 +518,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add_operator">
                     <div class="modal-body">
-                        <p class="text-muted small">Enter the license number as printed. Issuing authority is selected automatically from operator type.</p>
+                        <p class="text-muted small">Enter the license as shown.</p>
                         <div class="mb-3">
                             <label class="form-label fw-semibold" for="{{ operator_form.operator_type.id_for_label }}">{{ operator_form.operator_type.label }}</label>
                             {{ operator_form.operator_type }}
@@ -659,21 +665,20 @@
                             <select id="deploy_driver_select" name="driver_id" class="form-select" required>
                                 <option value="" disabled selected>-- Select Available Personnel Operator --</option>
                             </select>
-                            <div class="form-text small text-muted">Operators attached to maintenance units are re-assignable to active deployments.</div>
                         </div>
 
                         <!-- LOCATION INPUT -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold"><i class="fa-solid fa-map-location-dot text-danger me-1"></i> Deployment Location / Destination</label>
-                            <input type="text" id="deployment_location_input" name="deployment_location" class="form-control" placeholder="Search Palawan barangay, municipality, or landmark..." autocomplete="off" required>
-                            <div class="form-text small text-muted"><i class="fa-solid fa-location-crosshairs text-success me-1"></i> Restricted strictly to Palawan Barangays and Municipalities.</div>
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-map-location-dot text-danger me-1"></i> Deployment Location</label>
+                            <input type="text" id="deployment_location_input" name="deployment_location" class="form-control" placeholder="Search Palawan locations..." autocomplete="off" required>
+                            <div class="form-text small text-muted"><i class="fa-solid fa-location-crosshairs text-success me-1"></i> Palawan locations only.</div>
                         </div>
 
                         <!-- PURPOSE OF DEPLOYMENT SELECT SELECTION -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Purpose of Deployment / Operational Mission</label>
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission Purpose</label>
                             <select id="deployment_purpose_input" name="deployment_purpose" class="form-select" required>
-                                <option value="" disabled selected>-- Select Deployment Purpose / Mission --</option>
+                                <option value="" disabled selected>-- Select mission --</option>
                                 <option value="Disaster Relief &amp; Supplies Delivery">Disaster Relief &amp; Supplies Delivery</option>
                                 <option value="Emergency Search &amp; Rescue (WASAR/USAR)">Emergency Search &amp; Rescue (WASAR/USAR)</option>
                                 <option value="Medical Evacuation &amp; Emergency Transport">Medical Evacuation &amp; Emergency Transport</option>
@@ -684,7 +689,6 @@
                                 <option value="Training &amp; Simulation Exercise">Training &amp; Simulation Exercise</option>
                                 <option value="Other Emergency Mission">Other Emergency Mission</option>
                             </select>
-                            <div class="form-text small text-muted">Select the official mission objective for this outbound dispatch.</div>
                         </div>
 
                         <div class="mb-3">
@@ -694,7 +698,7 @@
                     </div>
                     <div class="modal-footer bg-light">
                         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-sm btn-orange"><i class="fa-solid fa-check-circle"></i> Confirm Outbound Dispatch</button>
+                        <button type="submit" class="btn btn-sm btn-orange"><i class="fa-solid fa-check-circle"></i> Dispatch</button>
                     </div>
                 </form>
             </div>
@@ -712,30 +716,92 @@
                 <form method="POST" action="{% url 'dashboard_portal:logistics_dashboard' %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add_vehicle">
+                    <input type="hidden" id="assetCount" name="asset_count" value="1">
                     <div class="modal-body bg-white">
-                        <p class="text-muted small">Enter the asset name and its registration or hull identifier, then choose its type.</p>
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold" for="onboard-model">Asset name</label>
-                            <input type="text" id="onboard-model" name="model_name" class="form-control" placeholder="For example, Toyota Hiace ambulance" maxlength="100" autocomplete="off" required>
+                        <div id="assetRegistrationEntries">
+                        {% for asset_registration_form in asset_registration_forms %}
+                        <section class="asset-registration-entry border rounded p-3 mb-3" data-asset-entry>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <strong data-entry-title>Asset {{ forloop.counter }}</strong>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-asset hidden>Remove</button>
+                            </div>
+                            <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.model_name.id_for_label }}">{{ asset_registration_form.model_name.label }}</label>
+                                {{ asset_registration_form.model_name }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.plate_number.id_for_label }}">{{ asset_registration_form.plate_number.label }}</label>
+                                {{ asset_registration_form.plate_number }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.vehicle_type.id_for_label }}">{{ asset_registration_form.vehicle_type.label }}</label>
+                                {{ asset_registration_form.vehicle_type }}
+                            </div>
+                            <div class="col-12" data-asset-fields="land">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.make.id_for_label }}">{{ asset_registration_form.make.label }}</label>
+                                        {{ asset_registration_form.make }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.model_year.id_for_label }}">{{ asset_registration_form.model_year.label }}</label>
+                                        {{ asset_registration_form.model_year }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.color.id_for_label }}">{{ asset_registration_form.color.label }}</label>
+                                        {{ asset_registration_form.color }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.odometer_km.id_for_label }}">{{ asset_registration_form.odometer_km.label }}</label>
+                                        {{ asset_registration_form.odometer_km }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12" data-asset-fields="sea" hidden>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.hull_type.id_for_label }}">{{ asset_registration_form.hull_type.label }}</label>
+                                        {{ asset_registration_form.hull_type }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.length_m.id_for_label }}">{{ asset_registration_form.length_m.label }}</label>
+                                        {{ asset_registration_form.length_m }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.engine_details.id_for_label }}">{{ asset_registration_form.engine_details.label }}</label>
+                                {{ asset_registration_form.engine_details }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.fuel_type.id_for_label }}">{{ asset_registration_form.fuel_type.label }}</label>
+                                {{ asset_registration_form.fuel_type }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.passenger_capacity.id_for_label }}">Seating / passenger capacity</label>
+                                {{ asset_registration_form.passenger_capacity }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.registration_expiry.id_for_label }}">{{ asset_registration_form.registration_expiry.label }}</label>
+                                {{ asset_registration_form.registration_expiry }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.inspection_expiry.id_for_label }}">{{ asset_registration_form.inspection_expiry.label }}</label>
+                                {{ asset_registration_form.inspection_expiry }}
+                            </div>
+                            </div>
+                        </section>
+                        {% endfor %}
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold" for="onboard-plate">Plate number or hull ID</label>
-                            <input type="text" id="onboard-plate" name="plate_number" class="form-control" placeholder="For example, PDR-ALS-02 or MAR-001" maxlength="50" autocomplete="off" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold" for="onboard-vehicle-type">Asset type</label>
-                            <select id="onboard-vehicle-type" name="vehicle_type" class="form-select" required>
-                                <option value="" disabled selected>Choose an asset type</option>
-                                {% for type in types %}
-                                <option value="{{ type.id }}">{{ type.name }}</option>
-                                {% endfor %}
-                            </select>
-                            <div class="form-text">Choose the registered land or seacraft type that matches this asset.</div>
-                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="addAssetEntry">
+                            <i class="fa-solid fa-plus me-1"></i>Add another asset
+                        </button>
+                        <div class="form-text mt-2">Add up to 20 assets in one submission.</div>
                     </div>
                     <div class="modal-footer bg-light">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-orange"><i class="fa-solid fa-check-circle me-1"></i>Register asset</button>
+                        <button type="submit" class="btn btn-orange"><i class="fa-solid fa-check-circle me-1"></i>Register assets</button>
                     </div>
                 </form>
             </div>
@@ -856,6 +922,63 @@
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
+            const assetEntries = document.getElementById('assetRegistrationEntries');
+            const assetCount = document.getElementById('assetCount');
+            const updateAssetFields = function (entry) {
+                const assetType = entry.querySelector('select[name$="-vehicle_type"]');
+                if (!assetType) return;
+                const seaAsset = ['marine', 'maritime'].includes(
+                    assetType.options[assetType.selectedIndex]?.text.trim().toLowerCase()
+                );
+                entry.querySelectorAll('[data-asset-fields]').forEach(function (group) {
+                    const active = group.dataset.assetFields === (seaAsset ? 'sea' : 'land');
+                    group.hidden = !active;
+                    group.querySelectorAll('input, select, textarea').forEach(function (field) {
+                        field.disabled = !active;
+                    });
+                });
+            };
+            const renumberAssetEntries = function () {
+                const entries = assetEntries.querySelectorAll('[data-asset-entry]');
+                entries.forEach(function (entry, index) {
+                    entry.querySelectorAll('[name], [id], label[for]').forEach(function (element) {
+                        ['name', 'id', 'for'].forEach(function (attribute) {
+                            const value = element.getAttribute(attribute);
+                            if (value) element.setAttribute(attribute, value.replace(/asset-\d+/, 'asset-' + index));
+                        });
+                    });
+                    entry.querySelector('[data-entry-title]').textContent = 'Asset ' + (index + 1);
+                    const removeButton = entry.querySelector('[data-remove-asset]');
+                    removeButton.hidden = entries.length === 1;
+                    updateAssetFields(entry);
+                });
+                assetCount.value = entries.length;
+            };
+            assetEntries.addEventListener('change', function (event) {
+                if (event.target.matches('select[name$="-vehicle_type"]')) {
+                    updateAssetFields(event.target.closest('[data-asset-entry]'));
+                }
+            });
+            document.getElementById('addAssetEntry').addEventListener('click', function () {
+                const entries = assetEntries.querySelectorAll('[data-asset-entry]');
+                if (entries.length >= 20) return;
+                const clone = entries[entries.length - 1].cloneNode(true);
+                clone.querySelectorAll('input, select, textarea').forEach(function (field) {
+                    if (field.type === 'checkbox' || field.type === 'radio') field.checked = false;
+                    else field.value = '';
+                });
+                assetEntries.appendChild(clone);
+                renumberAssetEntries();
+            });
+            assetEntries.addEventListener('click', function (event) {
+                const button = event.target.closest('[data-remove-asset]');
+                if (button) {
+                    button.closest('[data-asset-entry]').remove();
+                    renumberAssetEntries();
+                }
+            });
+            renumberAssetEntries();
+
             const savedScroll = localStorage.getItem('logistics_dashboard_scroll');
             if (savedScroll !== null) {
                 window.scrollTo(0, parseInt(savedScroll, 10));

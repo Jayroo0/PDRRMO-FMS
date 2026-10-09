@@ -32,7 +32,9 @@ from .forms import (
     MaintenanceChecklistForm,
     MaintenanceFaultForm,
     FleetIncidentForm,
+    FleetAssetRegistrationForm,
     OperatorDetailsForm,
+    SeacraftRegistrationForm,
     ScheduledMaintenanceForm,
 )
 from .models import FleetIncident, Vehicle, VehicleType, Driver, VehicleAsset, OperatorProfile
@@ -1214,31 +1216,93 @@ def logistics_dashboard(request):
 
         # ACTION C: NEW ASSET REGISTRATION ONBOARDING
         elif action == 'add_vehicle':
-            model_name = request.POST.get('model_name', '').strip()
-            plate_number = request.POST.get('plate_number', '').strip()
-            type_id = request.POST.get('vehicle_type', '').strip()
-            if not model_name or not plate_number or not type_id:
-                messages.error(request, "Please enter the asset name, plate number or hull ID, and asset type.")
-                return redirect('dashboard_portal:logistics_dashboard')
-            if len(model_name) > 100 or len(plate_number) > 50:
-                messages.error(request, "The asset name must be 100 characters or fewer and the plate number or hull ID must be 50 characters or fewer.")
-                return redirect('dashboard_portal:logistics_dashboard')
-            v_type = VehicleType.objects.filter(pk=type_id).first()
-            if v_type is None:
-                messages.error(request, "Choose a valid registered asset type.")
-                return redirect('dashboard_portal:logistics_dashboard')
-            if Vehicle.objects.filter(plate_number=plate_number).exists():
-                messages.error(request, f"An asset with plate number or hull ID '{plate_number}' is already registered.")
+            if 'asset_count' in request.POST:
+                try:
+                    asset_count = int(request.POST['asset_count'])
+                except (TypeError, ValueError):
+                    asset_count = 0
+                if not 1 <= asset_count <= 20:
+                    messages.error(request, "Add between 1 and 20 fleet assets at a time.")
+                    return redirect('dashboard_portal:logistics_dashboard')
+                registration_forms = [
+                    FleetAssetRegistrationForm(request.POST, prefix=f'asset-{index}')
+                    for index in range(asset_count)
+                ]
+            else:
+                model_name = request.POST.get('model_name', '').strip()
+                plate_number = request.POST.get('plate_number', '').strip()
+                type_id = request.POST.get('vehicle_type', '').strip()
+                if not model_name or not plate_number or not type_id:
+                    messages.error(request, "Please enter the asset name, plate number or hull ID, and asset type.")
+                    return redirect('dashboard_portal:logistics_dashboard')
+                if Vehicle.objects.filter(plate_number=plate_number).exists():
+                    messages.error(request, f"An asset with plate number or hull ID '{plate_number}' is already registered.")
+                    return redirect('dashboard_portal:logistics_dashboard')
+                registration_forms = [FleetAssetRegistrationForm(request.POST)]
+
+            valid_forms = [form.is_valid() for form in registration_forms]
+            forms_valid = all(valid_forms)
+            submitted_identifiers = [
+                form.cleaned_data.get('plate_number', '').strip()
+                for form, is_valid in zip(registration_forms, valid_forms)
+                if is_valid
+            ]
+            duplicate_identifiers = {
+                identifier
+                for identifier in submitted_identifiers
+                if submitted_identifiers.count(identifier) > 1
+            }
+            if duplicate_identifiers:
+                messages.error(
+                    request,
+                    "Each asset must have a different plate number or hull ID.",
+                )
+                forms_valid = False
+
+            if forms_valid:
+                for form in registration_forms:
+                    identifier = form.cleaned_data['plate_number'].strip()
+                    model_name = form.cleaned_data['model_name'].strip()
+                    if Vehicle.objects.filter(plate_number=identifier).exists():
+                        messages.error(request, f"An asset with plate number or hull ID '{identifier}' is already registered.")
+                        forms_valid = False
+                        break
+                    if len(model_name) > 100 or len(identifier) > 50:
+                        messages.error(request, "The asset name must be 100 characters or fewer and the plate number or hull ID must be 50 characters or fewer.")
+                        forms_valid = False
+                        break
+
+            if not forms_valid:
+                for index, form in enumerate(registration_forms, start=1):
+                    for field, errors in form.errors.items():
+                        field_label = form.fields[field].label
+                        for error in errors:
+                            messages.error(request, f"Asset {index} — {field_label}: {error}")
                 return redirect('dashboard_portal:logistics_dashboard')
 
-            new_asset = Vehicle.objects.create(
-                model_name=model_name,
-                plate_number=plate_number,
-                vehicle_type=v_type,
-                status='OPERATIONAL'
-            )
-            log_action_to_admin(request, new_asset, ADDITION, f"Registered new asset unit '{model_name}' into inventory records.")
-            messages.success(request, f"New fleet asset '{model_name}' has been securely registered to the base depot map.")
+            registered_assets = []
+            with transaction.atomic():
+                for form in registration_forms:
+                    new_asset = form.save(commit=False)
+                    v_type = form.cleaned_data['vehicle_type']
+                    new_asset.vehicle_type = v_type
+                    new_asset.status = 'OPERATIONAL'
+                    is_seacraft = v_type.name.strip().casefold() in {'marine', 'maritime'}
+                    if is_seacraft:
+                        new_asset.make = ''
+                        new_asset.model_year = None
+                        new_asset.color = ''
+                        new_asset.odometer_km = None
+                    else:
+                        new_asset.hull_type = ''
+                        new_asset.length_m = None
+                    new_asset.save()
+                    log_action_to_admin(request, new_asset, ADDITION, f"Registered new asset unit '{new_asset.model_name}' into inventory records.")
+                    registered_assets.append(new_asset)
+            if len(registered_assets) == 1:
+                messages.success(request, f"New fleet asset '{registered_assets[0].model_name}' has been securely registered to the base depot map.")
+            else:
+                messages.success(request, f"{len(registered_assets)} fleet assets have been registered.")
             return redirect('dashboard_portal:logistics_dashboard')
 
         # ACTION D: SET/UNSET PERSONNEL OPERATOR
@@ -1365,6 +1429,9 @@ def logistics_dashboard(request):
         'assigned_driver_ids': assigned_driver_ids,
         'assigned_driver_map': assigned_driver_map,
         'operator_form': OperatorDetailsForm(),
+        'asset_registration_forms': [
+            FleetAssetRegistrationForm(prefix='asset-0'),
+        ],
         'incident_form': FleetIncidentForm(
             vehicle_queryset=all_vehicles.select_related('vehicle_type'),
         ),
@@ -1408,6 +1475,70 @@ def seacraft_dispatch_view(request):
                 for errors in form.errors.values():
                     for error in errors:
                         messages.error(request, error)
+            return redirect("dashboard_portal:seacraft_dispatch")
+
+        if action == "add_seacraft":
+            if 'craft_count' in request.POST:
+                try:
+                    craft_count = int(request.POST['craft_count'])
+                except (TypeError, ValueError):
+                    craft_count = 0
+                if not 1 <= craft_count <= 20:
+                    messages.error(request, "Add between 1 and 20 seacrafts at a time.")
+                    return redirect("dashboard_portal:seacraft_dispatch")
+                forms = [
+                    SeacraftRegistrationForm(request.POST, prefix=f'craft-{index}')
+                    for index in range(craft_count)
+                ]
+            else:
+                forms = [SeacraftRegistrationForm(request.POST)]
+
+            valid_forms = [form.is_valid() for form in forms]
+            submitted_identifiers = [
+                form.cleaned_data.get('plate_number', '').strip()
+                for form, is_valid in zip(forms, valid_forms)
+                if is_valid
+            ]
+            duplicate_identifiers = {
+                identifier
+                for identifier in submitted_identifiers
+                if submitted_identifiers.count(identifier) > 1
+            }
+            if duplicate_identifiers:
+                messages.error(request, "Each seacraft must have a different hull ID.")
+
+            form_errors = any(not is_valid for is_valid in valid_forms)
+            already_registered = any(
+                Vehicle.objects.filter(plate_number=identifier).exists()
+                for identifier in submitted_identifiers
+            )
+            if already_registered:
+                messages.error(request, "A seacraft with one of those hull IDs is already registered.")
+            if form_errors or duplicate_identifiers or already_registered:
+                for index, form in enumerate(forms, start=1):
+                    for field, errors in form.errors.items():
+                        field_label = form.fields[field].label if field in form.fields else 'Seacraft'
+                        for error in errors:
+                            messages.error(request, f"Seacraft {index} — {field_label}: {error}")
+                return redirect("dashboard_portal:seacraft_dispatch")
+
+            registered_crafts = []
+            with transaction.atomic():
+                for form in forms:
+                    new_craft = form.save(commit=False)
+                    new_craft.status = "OPERATIONAL"
+                    new_craft.save()
+                    log_action_to_admin(
+                        request,
+                        new_craft,
+                        ADDITION,
+                        f"Registered new seacraft unit '{new_craft.model_name}' into inventory records.",
+                    )
+                    registered_crafts.append(new_craft)
+            if len(registered_crafts) == 1:
+                messages.success(request, f"Seacraft '{registered_crafts[0].model_name}' registered.")
+            else:
+                messages.success(request, f"{len(registered_crafts)} seacrafts registered.")
             return redirect("dashboard_portal:seacraft_dispatch")
 
         vehicle = get_object_or_404(
@@ -1614,6 +1745,7 @@ def seacraft_dispatch_view(request):
             "drivers": sea_drivers,
             "assigned_driver_ids": assigned_driver_ids,
             "operator_form": OperatorDetailsForm(allowed_operator_type='SEA'),
+            "seacraft_forms": [SeacraftRegistrationForm(prefix='craft-0')],
             "incident_form": FleetIncidentForm(
                 vehicle_queryset=sea_crafts.select_related('vehicle_type'),
             ),

@@ -95,6 +95,25 @@
             backdrop-filter: blur(6px);
             border-radius: 12px;
         }
+
+        #addSeacraftModal .modal-content > form {
+            display: flex;
+            flex: 1 1 auto;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #addSeacraftModal .modal-content > form > .modal-body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+
+        #addSeacraftModal .modal-content > form > .modal-footer {
+            flex: 0 0 auto;
+        }
     </style>
     <link rel="stylesheet" href="{% static 'fleet/css/dashboard_theme.css' %}">
 </head>
@@ -138,6 +157,9 @@
             <button type="button" class="btn btn-outline-primary text-start fw-semibold seacraft-menu-action" data-menu-action="add-operator">
                 <i class="fa-solid fa-user-plus me-2"></i>Add Seacraft Operator
             </button>
+            <button type="button" class="btn btn-outline-info text-start fw-semibold seacraft-menu-action" data-menu-action="add-seacraft">
+                <i class="fa-solid fa-ship me-2"></i>Add Seacraft
+            </button>
             <button type="button" class="btn btn-outline-success text-start fw-semibold seacraft-menu-action" data-menu-action="generate-report">
                 <i class="fa-solid fa-file-export me-2"></i>Generate Report
             </button>
@@ -153,6 +175,88 @@
                     <button type="submit" class="btn btn-outline-danger fw-bold w-100 text-start">
                         <i class="fa-solid fa-right-from-bracket me-2"></i>Log Out
                     </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="addSeacraftModal" tabindex="-1" aria-labelledby="addSeacraftModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background-color: #1A365D;">
+                    <h5 class="modal-title fw-bold" id="addSeacraftModalLabel">
+                        <i class="fa-solid fa-ship text-info me-2"></i>Add Seacraft
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="{% url 'dashboard_portal:seacraft_dispatch' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_seacraft">
+                    <input type="hidden" id="craftCount" name="craft_count" value="1">
+                    <div class="modal-body">
+                        <div id="seacraftRegistrationEntries">
+                        {% for seacraft_form in seacraft_forms %}
+                        <section class="seacraft-registration-entry border rounded p-3 mb-3" data-craft-entry>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <strong data-craft-title>Seacraft {{ forloop.counter }}</strong>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-craft hidden>Remove</button>
+                            </div>
+                            <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.model_name.id_for_label }}">{{ seacraft_form.model_name.label }}</label>
+                                {{ seacraft_form.model_name }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.plate_number.id_for_label }}">{{ seacraft_form.plate_number.label }}</label>
+                                {{ seacraft_form.plate_number }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.vehicle_type.id_for_label }}">{{ seacraft_form.vehicle_type.label }}</label>
+                                {{ seacraft_form.vehicle_type }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.hull_type.id_for_label }}">{{ seacraft_form.hull_type.label }}</label>
+                                {{ seacraft_form.hull_type }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.length_m.id_for_label }}">{{ seacraft_form.length_m.label }}</label>
+                                {{ seacraft_form.length_m }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.passenger_capacity.id_for_label }}">{{ seacraft_form.passenger_capacity.label }}</label>
+                                {{ seacraft_form.passenger_capacity }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.engine_details.id_for_label }}">{{ seacraft_form.engine_details.label }}</label>
+                                {{ seacraft_form.engine_details }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.fuel_type.id_for_label }}">{{ seacraft_form.fuel_type.label }}</label>
+                                {{ seacraft_form.fuel_type }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.registration_expiry.id_for_label }}">{{ seacraft_form.registration_expiry.label }}</label>
+                                {{ seacraft_form.registration_expiry }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ seacraft_form.inspection_expiry.id_for_label }}">{{ seacraft_form.inspection_expiry.label }}</label>
+                                {{ seacraft_form.inspection_expiry }}
+                            </div>
+                            </div>
+                        </section>
+                        {% endfor %}
+                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="addSeacraftEntry">
+                            <i class="fa-solid fa-plus me-1"></i>Add another seacraft
+                        </button>
+                        <div class="form-text mt-2">Add up to 20 seacrafts in one submission.</div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-semibold">
+                            <i class="fa-solid fa-check me-1"></i>Register Seacrafts
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
@@ -213,6 +317,7 @@
                                     <td>
                                         <strong>{{ craft.model_name }}</strong>
                                         <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                        {% include "fleet/_seacraft_specs.html" with craft=craft %}
                                         {% if craft.status == 'DEPLOYED' %}
                                             <div class="small mt-1 text-primary"><i class="fa-solid fa-map-pin me-1"></i> {{ craft.deployment_location|default:"Coastal Sector Deployment" }}</div>
                                             {% if craft.deployment_purpose %}
@@ -346,6 +451,7 @@
                                         <td>
                                             <strong>{{ craft.model_name }}</strong>
                                             <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                            {% include "fleet/_seacraft_specs.html" with craft=craft %}
                                             <div class="small mt-1 text-primary"><i class="fa-solid fa-map-pin me-1"></i> {{ craft.deployment_location|default:"Coastal Sector Deployment" }}</div>
                                             {% if craft.deployment_purpose %}
                                                 <div class="small text-dark fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission: {{ craft.deployment_purpose }}</div>
@@ -394,6 +500,7 @@
                                         <td>
                                             <strong>{{ craft.model_name }}</strong>
                                             <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                            {% include "fleet/_seacraft_specs.html" with craft=craft %}
                                         </td>
                                         <td><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></td>
                                         <td>
@@ -513,7 +620,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add_operator">
                     <div class="modal-body">
-                        <p class="text-muted small">Enter the license number as printed. Issuing authority is automatically set to MARINA for seacraft operators.</p>
+                        <p class="text-muted small">Enter the operator details.</p>
                         <div class="mb-3">
                             <label class="form-label fw-semibold" for="{{ operator_form.name.id_for_label }}">{{ operator_form.name.label }}</label>
                             {{ operator_form.name }}
@@ -554,23 +661,22 @@
 
                         <!-- OPERATOR SELECTION -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold"><i class="fa-solid fa-user-shield text-primary me-1"></i> Assigned Personnel Operator / Skipper <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-user-shield text-primary me-1"></i> Operator / Skipper <span class="text-danger">*</span></label>
                             <select id="deploy_driver_select" name="driver_id" class="form-select" required>
                                 <option value="" disabled selected>-- Select Personnel Operator --</option>
                             </select>
-                            <div class="form-text small text-muted">A designated operator/skipper is required to authorize dispatch.</div>
                         </div>
 
                         <!-- LOCATION INPUT -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold"><i class="fa-solid fa-map-location-dot text-danger me-1"></i> Deployment Location / Sector <span class="text-danger">*</span></label>
-                            <input type="text" id="deployment_location_input" name="deployment_location" class="form-control" placeholder="Search Palawan barangay, municipality, or coastal grid..." autocomplete="off" required>
-                            <div class="form-text small text-muted"><i class="fa-solid fa-location-crosshairs text-success me-1"></i> Restricted to Palawan Maritime Sectors, Barangays, and Municipalities.</div>
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-map-location-dot text-danger me-1"></i> Deployment Location <span class="text-danger">*</span></label>
+                            <input type="text" id="deployment_location_input" name="deployment_location" class="form-control" placeholder="Search Palawan locations..." autocomplete="off" required>
+                            <div class="form-text small text-muted"><i class="fa-solid fa-location-crosshairs text-success me-1"></i> Palawan maritime locations only.</div>
                         </div>
 
                         <!-- MISSION PURPOSE SELECT -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Purpose of Deployment / Operational Mission <span class="text-danger">*</span></label>
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission Purpose <span class="text-danger">*</span></label>
                             <select id="deployment_purpose_input" name="deployment_purpose" class="form-select" required>
                                 <option value="" disabled selected>-- Select Mission Objective --</option>
                                 <option value="Disaster Relief &amp; Supplies Delivery">Disaster Relief &amp; Supplies Delivery</option>
@@ -583,7 +689,6 @@
                                 <option value="Training &amp; Simulation Exercise">Training &amp; Simulation Exercise</option>
                                 <option value="Other Emergency Mission">Other Emergency Mission</option>
                             </select>
-                            <div class="form-text small text-muted">Select the official maritime mission objective for this outbound dispatch.</div>
                         </div>
 
                         <!-- DEPLOYMENT TIME -->
@@ -594,7 +699,7 @@
                     </div>
                     <div class="modal-footer bg-light">
                         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-sm btn-primary fw-bold"><i class="fa-solid fa-check-circle me-1"></i> Confirm Outbound Dispatch</button>
+                        <button type="submit" class="btn btn-sm btn-primary fw-bold"><i class="fa-solid fa-check-circle me-1"></i> Dispatch</button>
                     </div>
                 </form>
             </div>
@@ -701,6 +806,41 @@
         }
 
         document.addEventListener("DOMContentLoaded", function() {
+            const craftEntries = document.getElementById('seacraftRegistrationEntries');
+            const craftCount = document.getElementById('craftCount');
+            const renumberCraftEntries = function () {
+                const entries = craftEntries.querySelectorAll('[data-craft-entry]');
+                entries.forEach(function (entry, index) {
+                    entry.querySelectorAll('[name], [id], label[for]').forEach(function (element) {
+                        ['name', 'id', 'for'].forEach(function (attribute) {
+                            const value = element.getAttribute(attribute);
+                            if (value) element.setAttribute(attribute, value.replace(/craft-\d+/, 'craft-' + index));
+                        });
+                    });
+                    entry.querySelector('[data-craft-title]').textContent = 'Seacraft ' + (index + 1);
+                    entry.querySelector('[data-remove-craft]').hidden = entries.length === 1;
+                });
+                craftCount.value = entries.length;
+            };
+            document.getElementById('addSeacraftEntry').addEventListener('click', function () {
+                const entries = craftEntries.querySelectorAll('[data-craft-entry]');
+                if (entries.length >= 20) return;
+                const clone = entries[entries.length - 1].cloneNode(true);
+                clone.querySelectorAll('input, select, textarea').forEach(function (field) {
+                    field.value = '';
+                });
+                craftEntries.appendChild(clone);
+                renumberCraftEntries();
+            });
+            craftEntries.addEventListener('click', function (event) {
+                const button = event.target.closest('[data-remove-craft]');
+                if (button) {
+                    button.closest('[data-craft-entry]').remove();
+                    renumberCraftEntries();
+                }
+            });
+            renumberCraftEntries();
+
             const menuDrawer = document.getElementById('seacraftMenuDrawer');
             if (menuDrawer) {
                 menuDrawer.querySelectorAll('[data-menu-action]').forEach(button => {
@@ -718,6 +858,9 @@
                         window.print();
                     } else if (action === 'add-operator') {
                         const modal = document.getElementById('addSeacraftOperatorModal');
+                        bootstrap.Modal.getOrCreateInstance(modal).show();
+                    } else if (action === 'add-seacraft') {
+                        const modal = document.getElementById('addSeacraftModal');
                         bootstrap.Modal.getOrCreateInstance(modal).show();
                     } else if (action === 'generate-report') {
                         const modal = document.getElementById('generateReportModal');

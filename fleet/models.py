@@ -97,6 +97,17 @@ class Vehicle(models.Model):
     model_name = models.CharField(max_length=100)
     plate_number = models.CharField(max_length=50, unique=True)
     vehicle_type = models.ForeignKey(VehicleType, on_delete=models.CASCADE)
+    hull_type = models.CharField(max_length=100, blank=True)
+    length_m = models.DecimalField(max_digits=7, decimal_places=2, blank=True, null=True)
+    make = models.CharField(max_length=100, blank=True)
+    model_year = models.PositiveSmallIntegerField(blank=True, null=True)
+    color = models.CharField(max_length=50, blank=True)
+    odometer_km = models.DecimalField(max_digits=10, decimal_places=1, blank=True, null=True)
+    passenger_capacity = models.PositiveIntegerField(blank=True, null=True)
+    engine_details = models.CharField(max_length=200, blank=True)
+    fuel_type = models.CharField(max_length=50, blank=True)
+    registration_expiry = models.DateField(blank=True, null=True)
+    inspection_expiry = models.DateField(blank=True, null=True)
 
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='OPERATIONAL')
 

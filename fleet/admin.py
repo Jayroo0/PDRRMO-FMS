@@ -95,7 +95,15 @@ class VehicleAdmin(admin.ModelAdmin):
         'plate_number', 
         'vehicle_type', 
         'status', 
-        'driver_phone'  # 🔍 Pulls from the custom display method below
+        'make',
+        'model_year',
+        'color',
+        'odometer_km',
+        'hull_type',
+        'passenger_capacity',
+        'registration_expiry',
+        'inspection_expiry',
+        'driver_phone'
     ]
     list_filter = ('status', 'vehicle_type')
     # 🔄 Note: we use assigned_driver__name because assigned_driver is now a model reference

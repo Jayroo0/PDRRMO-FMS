@@ -1,0 +1,11 @@
+{% if craft.hull_type or craft.length_m or craft.passenger_capacity or craft.engine_details or craft.fuel_type or craft.registration_expiry or craft.inspection_expiry %}
+<div class="small text-muted mt-1">
+    {% if craft.hull_type %}{{ craft.hull_type }}{% endif %}
+    {% if craft.length_m %}{% if craft.hull_type %} · {% endif %}{{ craft.length_m }} m{% endif %}
+    {% if craft.passenger_capacity %} · {{ craft.passenger_capacity }} passengers{% endif %}
+    {% if craft.engine_details %}<br>Engine: {{ craft.engine_details }}{% endif %}
+    {% if craft.fuel_type %}{% if craft.engine_details %} · {% else %}<br>{% endif %}{{ craft.fuel_type }}{% endif %}
+    {% if craft.registration_expiry %}<br>Registration due {{ craft.registration_expiry|date:"M Y" }}{% endif %}
+    {% if craft.inspection_expiry %}{% if craft.registration_expiry %} · {% else %}<br>{% endif %}Inspection due {{ craft.inspection_expiry|date:"M Y" }}{% endif %}
+</div>
+{% endif %}

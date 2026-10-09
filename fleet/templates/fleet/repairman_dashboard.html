@@ -81,6 +81,7 @@
                             <td class="fw-bold text-dark">
                                 {{ vehicle.model_name }} 
                                 <span class="badge bg-secondary font-monospace text-uppercase ms-1">{{ vehicle.vehicle_type.name }}</span>
+                                {% include "fleet/_land_vehicle_specs.html" with vehicle=vehicle %}
                             </td>
                             <td><code class="bg-light text-dark border px-2 py-1 rounded font-monospace">{{ vehicle.plate_number }}</code></td>
                             
@@ -199,7 +200,7 @@
                                 <input type="hidden" name="action_type" value="COMPLETE_MAINTENANCE">
                                 <fieldset>
                                     <legend class="fs-6 fw-bold">Return-to-service checklist</legend>
-                                    <p class="small text-muted">Verify every item before returning this vehicle to service.</p>
+                                    <p class="small text-muted">Complete all checks before return.</p>
                                     {{ vehicle.checklist_form.maintenance_checklist }}
                                 </fieldset>
                                 <button type="submit" class="btn btn-success mt-3">
@@ -233,7 +234,7 @@
                                 <button type="submit" class="btn btn-outline-warning">Undo disposal request</button>
                             </form>
                         {% else %}
-                            <p class="text-muted">Record the fault reported by the end-user. The vehicle will enter maintenance after the fault is submitted.</p>
+                            <p class="text-muted">Describe the reported fault.</p>
                             <form method="POST" action="{% url 'dashboard_portal:repairman_dashboard' %}">
                                 {% csrf_token %}
                                 <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
@@ -278,7 +279,7 @@
                         <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
                         <input type="hidden" name="action_type" value="SCHEDULE_MAINTENANCE">
                         <div class="modal-body">
-                            <p class="small text-muted">When the due date arrives, this vehicle will automatically move to Maintenance and be unavailable for dispatch.</p>
+                            <p class="small text-muted">The vehicle enters maintenance on this date.</p>
                             <div class="mb-3">
                                 <label for="{{ vehicle.schedule_form.maintenance_type.id_for_label }}" class="form-label fw-bold">{{ vehicle.schedule_form.maintenance_type.label }}</label>
                                 {{ vehicle.schedule_form.maintenance_type }}

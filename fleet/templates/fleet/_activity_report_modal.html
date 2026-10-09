@@ -9,7 +9,6 @@
             </div>
             <form method="get" action="{% url 'dashboard_portal:fleet_activity_report' %}" id="generateReportForm">
                 <div class="modal-body">
-                    <p class="text-muted small">Select a report and reporting period, then print or export the results.</p>
                     <div class="mb-3">
                         <label for="report-kind" class="form-label fw-semibold">Report</label>
                         <select id="report-kind" name="report_kind" class="form-select" required>
@@ -59,9 +58,8 @@
                         </div>
                     </div>
                     <div class="border-top pt-3 mt-3">
-                        <p class="small text-muted mb-2">Need to record a new incident?</p>
                         <button type="button" class="btn btn-outline-danger" data-open-incident-report>
-                            <i class="fa-solid fa-triangle-exclamation me-1"></i>Report an incident
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i>File incident
                         </button>
                     </div>
                 </div>
