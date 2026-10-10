@@ -14,17 +14,17 @@
         <div class="small text-muted border rounded bg-white p-3 mb-2">
             <i class="fa-solid fa-screwdriver-wrench text-success me-2"></i>Maintenance Workbench
         </div>
-        <button type="button" class="btn btn-outline-secondary text-start fw-semibold mechanic-menu-action" data-menu-action="print">
-            <i class="fa-solid fa-print me-2"></i>Print Dashboard
-        </button>
-        <button type="button" class="btn btn-outline-success text-start fw-semibold mechanic-menu-action" data-menu-action="generate-report">
-            <i class="fa-solid fa-file-export me-2"></i>Generate Report
-        </button>
         <button type="button" class="btn btn-outline-danger text-start fw-semibold mechanic-menu-action" data-menu-action="file-incident">
             <i class="fa-solid fa-triangle-exclamation me-2"></i>File Incident Report
         </button>
         <button type="button" class="btn btn-outline-primary text-start fw-semibold mechanic-menu-action" data-menu-action="print-incident">
             <i class="fa-solid fa-print me-2"></i>Print Incident Report
+        </button>
+        <button type="button" class="btn btn-outline-success text-start fw-semibold mechanic-menu-action" data-menu-action="generate-report">
+            <i class="fa-solid fa-file-export me-2"></i>Generate Report
+        </button>
+        <button type="button" class="btn btn-outline-secondary text-start fw-semibold mechanic-menu-action" data-menu-action="print">
+            <i class="fa-solid fa-print me-2"></i>Print Dashboard
         </button>
         <div class="mt-auto pt-3 border-top">
             <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="m-0">

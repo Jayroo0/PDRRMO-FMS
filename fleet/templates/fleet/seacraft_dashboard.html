@@ -63,7 +63,7 @@
                 </span>
             </div>
 
-            <div class="overflow-x-auto dashboard-view-list" data-view-list="marine-work-orders" data-view-type="table" data-view-default="grid">
+            <div class="overflow-x-auto dashboard-view-list" data-view-list="marine-work-orders" data-view-type="table" data-view-default="grid" data-horizontal-card-scroll="true">
                 <table id="sea-fleet-table" class="w-full text-left border-collapse text-sm asset-grid-table asset-grid-table--sea">
                     <thead>
                         <tr class="bg-gray-100 text-gray-600 uppercase font-bold tracking-wider text-xs border-b border-gray-200">
@@ -83,10 +83,17 @@
                                 <td class="px-6 py-4 font-mono text-gray-500 font-medium">{{ craft.plate_number }}</td>
                                 <td class="px-6 py-4">
                                     {% if craft.status == 'MAINTENANCE' %}
-                                        <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-bold uppercase text-amber-800">Maintenance</span>
-                                        <div class="mt-2 max-w-sm rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900">
-                                            <strong>User-reported fault:</strong> {{ craft.maintenance_problem|default:"No fault description recorded." }}
-                                        </div>
+                                        {% if craft.maintenance_problem|slice:":9" == "Scheduled" %}
+                                            <span class="inline-flex items-center rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-bold uppercase text-sky-800">REGULAR MAINTENANCE</span>
+                                            <div class="mt-2 max-w-sm rounded border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
+                                                {{ craft.maintenance_problem }}
+                                            </div>
+                                        {% else %}
+                                            <span class="inline-flex items-center rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-bold uppercase text-red-800">FAULT REPAIR</span>
+                                            <div class="mt-2 max-w-sm rounded border border-red-200 bg-red-50 p-2 text-xs text-red-900">
+                                                <strong>User-reported fault:</strong> {{ craft.maintenance_problem|default:"No fault description recorded." }}
+                                            </div>
+                                        {% endif %}
                                     {% elif craft.status == 'PENDING_DISPOSAL' %}
                                         <span class="inline-flex items-center rounded-full border border-amber-200 bg-amber-100 px-2.5 py-0.5 text-xs font-bold uppercase text-amber-800">Pending disposal</span>
                                         <div class="mt-1 text-xs text-red-700"><strong>Disposal reason:</strong> {{ craft.disposal_reason|default:"No reason recorded." }}</div>
@@ -112,10 +119,14 @@
                                     {% else %}
                                         <span class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold uppercase text-emerald-800">Operational</span>
                                     {% endif %}
+                                    {% if craft.status == 'MAINTENANCE' or craft.status == 'PENDING_DISPOSAL' %}
+                                        <div class="mt-2 text-xs text-gray-500"><strong>Last assigned driver:</strong> {{ craft.maintenance_last_assigned_driver|default:"Not recorded" }}</div>
+                                    {% endif %}
                                     {% if craft.scheduled_maintenance_date %}
-                                        <div class="mt-2 text-xs text-amber-800">
-                                            <strong>{{ craft.get_scheduled_maintenance_type_display }} due:</strong> {{ craft.scheduled_maintenance_date|date:"M j, Y" }}
-                                            {% if craft.scheduled_maintenance_description %}<div>{{ craft.scheduled_maintenance_description }}</div>{% endif %}
+                                        <div class="mt-2 max-w-sm rounded border border-sky-200 bg-sky-50 p-2 text-xs text-sky-900">
+                                            <span class="inline-flex items-center rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-bold uppercase text-sky-800">Regular maintenance scheduled</span>
+                                            <div><strong>{{ craft.get_scheduled_maintenance_type_display }} due:</strong> {{ craft.scheduled_maintenance_date|date:"M j, Y" }}
+                                            {% if craft.scheduled_maintenance_description %}<div>{{ craft.scheduled_maintenance_description }}</div>{% endif %}</div>
                                         </div>
                                     {% endif %}
                                 </td>

@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 
 class VehicleType(models.Model):
@@ -112,6 +113,8 @@ class Vehicle(models.Model):
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='OPERATIONAL')
 
     maintenance_problem = models.CharField(max_length=1000, blank=True)
+    maintenance_started_at = models.DateTimeField(null=True, blank=True)
+    maintenance_last_assigned_driver = models.CharField(max_length=100, blank=True)
     scheduled_maintenance_type = models.CharField(
         max_length=20,
         choices=SCHEDULED_MAINTENANCE_CHOICES,
@@ -131,6 +134,60 @@ class Vehicle(models.Model):
     deployment_location = models.CharField(max_length=255, blank=True, null=True)
     deployment_purpose = models.CharField(max_length=255, blank=True, null=True)
     deployment_time = models.DateTimeField(blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        previous = None
+        if not self._state.adding:
+            previous = type(self).objects.filter(pk=self.pk).values(
+                'status',
+                'maintenance_started_at',
+                'maintenance_last_assigned_driver',
+                'assigned_driver__name',
+            ).first()
+
+        previous_status = previous['status'] if previous else None
+        previous_maintenance_started_at = (
+            previous['maintenance_started_at'] if previous else None
+        )
+        previous_maintenance_last_assigned_driver = (
+            previous['maintenance_last_assigned_driver'] if previous else ''
+        )
+        if self.status in {'MAINTENANCE', 'PENDING_DISPOSAL'}:
+            if (
+                previous_status in {'MAINTENANCE', 'PENDING_DISPOSAL'}
+                and previous_maintenance_started_at
+            ):
+                self.maintenance_started_at = previous_maintenance_started_at
+                self.maintenance_last_assigned_driver = (
+                    previous_maintenance_last_assigned_driver
+                    or previous['assigned_driver__name']
+                    or ''
+                )
+            else:
+                self.maintenance_started_at = timezone.now()
+                self.maintenance_last_assigned_driver = (
+                    previous['assigned_driver__name'] if previous else ''
+                ) or ''
+        else:
+            self.maintenance_started_at = None
+            self.maintenance_last_assigned_driver = ''
+
+        update_fields = kwargs.get('update_fields')
+        if update_fields is not None and (
+            previous is None
+            or self.maintenance_started_at != previous_maintenance_started_at
+        ):
+            update_fields = set(update_fields) | {'maintenance_started_at'}
+        if update_fields is not None and (
+            previous is None
+            or self.maintenance_last_assigned_driver
+            != previous_maintenance_last_assigned_driver
+        ):
+            update_fields = set(update_fields) | {'maintenance_last_assigned_driver'}
+        if update_fields is not None:
+            kwargs['update_fields'] = update_fields
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.model_name} ({self.plate_number})"

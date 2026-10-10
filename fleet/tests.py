@@ -47,11 +47,23 @@ class LoginViewTests(TestCase):
         self.assertContains(response, 'data-menu-action="add-operator"')
         self.assertContains(response, 'data-menu-action="add-asset"')
         self.assertContains(response, 'data-menu-action="print"')
+        self.assertContains(response, 'data-menu-action="view-incidents"')
         self.assertNotContains(response, 'id_license_authority')
         self.assertContains(response, 'Enter the license as shown.')
         self.assertContains(response, 'license authority: ${authority} (automatic).')
         self.assertContains(response, 'data-menu-action="generate-report"')
         self.assertContains(response, 'Generate Fleet Report')
+        drawer_order = (
+            'data-menu-action="add-asset"',
+            'data-menu-action="add-operator"',
+            'data-menu-action="operators"',
+            'data-menu-action="file-incident"',
+            'data-menu-action="print-incident"',
+            'data-menu-action="generate-report"',
+            'data-menu-action="print"',
+        )
+        drawer_positions = [response.content.index(action.encode()) for action in drawer_order]
+        self.assertEqual(drawer_positions, sorted(drawer_positions))
         self.assertEqual(response.content.count(b'class="asset-grid logistics-asset-grid"'), 6)
         self.assertContains(response, 'Add a fleet asset')
         self.assertContains(response, 'Plate number or hull ID')
@@ -282,6 +294,74 @@ class LogisticsReportExportTests(TestCase):
             rendered.index('</form>', rendered.index('id="generateReportForm"')),
             rendered.index('action="/fleet/reports/incidents/"'),
         )
+
+    def test_logistics_dashboard_lists_filed_incidents_with_per_report_actions(self):
+        incident = FleetIncident.objects.create(
+            vehicle=self.vehicle,
+            incident_type='DAMAGE',
+            occurred_at=timezone.now(),
+            location='Puerto Princesa',
+            description='Front bumper damaged during response.',
+            damage_details='Front bumper cracked.',
+            injury_status='NO',
+            witnesses='Response team',
+            actions_taken='Vehicle secured.',
+            follow_up_recommendations='Schedule repair.',
+            last_assigned_driver='Assigned Land Driver',
+            reported_by=self.user,
+        )
+
+        response = self.client.get(reverse('dashboard_portal:logistics_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context['incident_records']), [incident])
+        self.assertContains(response, 'id="filedIncidentReports"')
+        self.assertContains(response, 'IR-')
+        self.assertContains(response, 'Front bumper damaged during response.')
+        self.assertContains(response, 'Assigned Land Driver')
+        self.assertContains(response, 'Puerto Princesa')
+        self.assertContains(response, 'View report')
+        self.assertNotContains(response, 'View, Export or Print')
+        self.assertNotContains(response, 'js-open-incident-exports')
+        self.assertContains(response, 'title="Print incident report"')
+        self.assertContains(response, 'title="Export incident report as PDF"')
+        self.assertContains(response, f'incident_id={incident.pk}&amp;format=print')
+        self.assertContains(response, f'incident_id={incident.pk}&amp;format=pdf')
+        self.assertContains(response, 'value="csv"')
+        self.assertContains(response, 'value="xlsx"')
+        self.assertContains(response, 'value="pdf"')
+
+        other_incident = FleetIncident.objects.create(
+            vehicle=self.vehicle,
+            incident_type='BREAKDOWN',
+            occurred_at=timezone.now(),
+            location='Other location',
+            description='Another filed report.',
+            reported_by=self.user,
+        )
+        report_url = reverse('dashboard_portal:fleet_activity_report')
+        report_params = {
+            'report_kind': 'incident',
+            'period': 'day',
+            'day': timezone.localtime(incident.occurred_at).date().isoformat(),
+            'incident_id': incident.pk,
+        }
+        printable_report = self.client.get(
+            report_url,
+            {**report_params, 'format': 'print'},
+        )
+        self.assertEqual(printable_report.status_code, 200)
+        self.assertContains(printable_report, incident.description)
+        self.assertNotContains(printable_report, other_incident.description)
+
+        exported_report = self.client.get(
+            report_url,
+            {**report_params, 'format': 'pdf'},
+        )
+        self.assertEqual(exported_report.status_code, 200)
+        self.assertEqual(exported_report['Content-Type'], 'application/pdf')
+        self.assertIn('attachment;', exported_report['Content-Disposition'])
+        self.assertTrue(exported_report.content.startswith(b'%PDF'))
 
     def test_incident_reporting_is_available_on_every_fleet_dashboard(self):
         dashboards = (
@@ -895,6 +975,16 @@ class DispatchDashboardAlignmentTests(TestCase):
         self.assertContains(dashboard, 'id="addSeacraftModal"')
         self.assertContains(dashboard, 'modal-dialog-centered modal-dialog-scrollable')
         self.assertContains(dashboard, '#addSeacraftModal .modal-content > form > .modal-body')
+        drawer_order = (
+            'data-menu-action="add-seacraft"',
+            'data-menu-action="add-operator"',
+            'data-menu-action="file-incident"',
+            'data-menu-action="print-incident"',
+            'data-menu-action="generate-report"',
+            'data-menu-action="print"',
+        )
+        drawer_positions = [dashboard.content.index(action.encode()) for action in drawer_order]
+        self.assertEqual(drawer_positions, sorted(drawer_positions))
         self.assertContains(dashboard, f'value="{self.marine_type.pk}">MARINE</option>')
         self.assertNotContains(dashboard, f'value="{self.land_type.pk}">LAND</option>')
         for field_name in (
@@ -1196,16 +1286,66 @@ class DispatchDashboardAlignmentTests(TestCase):
         self.assertContains(response, 'Active Deployments (1)')
         self.assertContains(response, 'Maintenance &amp; Disposal (2)')
         self.assertEqual(response.content.count(b'data-horizontal-card-scroll="true"'), 3)
+        self.assertNotContains(response, 'data-vertical-card-scroll="true"')
+
+    def test_seacraft_dispatch_colors_scheduled_maintenance_and_faults_differently(self):
+        regular_maintenance = self.create_vehicle(
+            model_name='Scheduled Service Craft',
+            plate_number='SEA-COLOR-01',
+            vehicle_type=self.marine_type,
+            status='MAINTENANCE',
+            maintenance_problem='Scheduled Oil change is due.',
+        )
+        fault_repair = self.create_vehicle(
+            model_name='Fault Repair Craft',
+            plate_number='SEA-COLOR-02',
+            vehicle_type=self.marine_type,
+            status='MAINTENANCE',
+            maintenance_problem='Engine: Starter is not working.',
+        )
+
+        self.client.force_login(self.seacraft_user)
+        response = self.client.get(reverse('dashboard_portal:seacraft_dispatch'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'REGULAR MAINTENANCE')
+        self.assertContains(response, 'bg-info-subtle border border-info text-info-emphasis')
+        self.assertContains(response, 'FAULT REPAIR')
+        self.assertContains(response, 'bg-danger')
+        self.assertContains(response, regular_maintenance.maintenance_problem)
+        self.assertContains(response, fault_repair.maintenance_problem)
+
+    def test_seacraft_dispatch_persists_selected_tab_and_page_scroll(self):
+        self.client.force_login(self.seacraft_user)
+
+        response = self.client.get(reverse('dashboard_portal:seacraft_dispatch'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "seacraft_dispatch_active_tab")
+        self.assertContains(response, "seacraft_dispatch_scroll")
+        self.assertContains(response, "shown.bs.tab")
+        self.assertContains(response, "window.scrollTo(0, scrollPosition)")
+        self.assertContains(response, "form.addEventListener('submit'")
 
     def test_seacraft_dispatch_header_actions_are_in_menu_drawer(self):
+        self.create_vehicle(
+            model_name='Assignment Drawer Seacraft',
+            plate_number='SEA-DRAWER-01',
+            vehicle_type=self.marine_type,
+        )
         self.client.force_login(self.seacraft_user)
 
         response = self.client.get(reverse('dashboard_portal:seacraft_dispatch'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="seacraftMenuDrawer"')
+        self.assertContains(response, 'data-menu-action="operators"')
         self.assertContains(response, 'data-menu-action="print"')
         self.assertContains(response, 'data-menu-action="add-operator"')
+        self.assertContains(response, 'id="seacraftOperatorAssignmentDrawer"')
+        self.assertContains(response, 'name="action" value="set_driver"')
+        self.assertEqual(response.content.count(b'onchange="this.form.submit()"'), 1)
+        self.assertNotContains(response, 'RESET</button>')
         self.assertContains(response, 'Connected to Dispatch Server')
         self.assertContains(response, 'Log Out')
         self.assertContains(response, 'aria-label="Open seacraft dispatch menu"')
@@ -1407,6 +1547,117 @@ class MechanicMaintenanceWorkflowTests(TestCase):
             vehicle_type=self.marine_type,
         )
 
+    def test_maintenance_work_orders_are_sorted_first_come_first_served(self):
+        for vehicle, is_seacraft, vehicle_type, dashboard in (
+            (
+                self.land_vehicle,
+                False,
+                self.land_type,
+                'dashboard_portal:repairman_dashboard',
+            ),
+            (
+                self.seacraft,
+                True,
+                self.marine_type,
+                'dashboard_portal:seacraft_dashboard',
+            ),
+        ):
+            with self.subTest(dashboard=dashboard):
+                vehicle.status = 'MAINTENANCE'
+                vehicle.maintenance_problem = 'Engine: Reported fault.'
+                vehicle.save()
+                first_arrival = vehicle.maintenance_started_at
+
+                later_vehicle = Vehicle.objects.create(
+                    model_name='A Newer Work Order',
+                    plate_number=f'FIFO-{vehicle_type.pk}-02',
+                    vehicle_type=vehicle_type,
+                    status='MAINTENANCE',
+                    maintenance_problem='Engine: Later fault.',
+                )
+                Vehicle.objects.filter(pk=vehicle.pk).update(
+                    maintenance_started_at=first_arrival - timedelta(minutes=1),
+                )
+
+                self.client.force_login(
+                    self.sea_mechanic if is_seacraft else self.land_mechanic
+                )
+                response = self.client.get(reverse(dashboard))
+
+                self.assertEqual(response.status_code, 200)
+                maintenance_orders = [
+                    item.pk
+                    for item in response.context['vehicles']
+                    if item.status == 'MAINTENANCE'
+                ]
+                self.assertEqual(maintenance_orders, [vehicle.pk, later_vehicle.pk])
+
+    def test_maintenance_queue_timestamp_survives_disposal_review_and_resets_after_repair(self):
+        previous_driver = Driver.objects.create(name='Previous Land Driver')
+        self.land_vehicle.assigned_driver = previous_driver
+        self.land_vehicle.save()
+        self.land_vehicle.status = 'MAINTENANCE'
+        self.land_vehicle.save()
+        first_arrival = self.land_vehicle.maintenance_started_at
+        self.assertEqual(
+            self.land_vehicle.maintenance_last_assigned_driver,
+            previous_driver.name,
+        )
+
+        self.land_vehicle.status = 'PENDING_DISPOSAL'
+        self.land_vehicle.save()
+        self.assertEqual(self.land_vehicle.maintenance_started_at, first_arrival)
+        self.assertEqual(
+            self.land_vehicle.maintenance_last_assigned_driver,
+            previous_driver.name,
+        )
+
+        self.land_vehicle.status = 'MAINTENANCE'
+        self.land_vehicle.save()
+        self.assertEqual(self.land_vehicle.maintenance_started_at, first_arrival)
+
+        self.land_vehicle.status = 'OPERATIONAL'
+        self.land_vehicle.save()
+        self.assertIsNone(self.land_vehicle.maintenance_started_at)
+        self.assertEqual(self.land_vehicle.maintenance_last_assigned_driver, '')
+
+        self.land_vehicle.status = 'MAINTENANCE'
+        self.land_vehicle.save()
+        self.assertGreater(self.land_vehicle.maintenance_started_at, first_arrival)
+
+    def test_mechanic_dashboards_show_last_assigned_driver_during_maintenance(self):
+        for vehicle, is_seacraft, dashboard, driver_name in (
+            (
+                self.land_vehicle,
+                False,
+                'dashboard_portal:repairman_dashboard',
+                'Previous Land Fleet Driver',
+            ),
+            (
+                self.seacraft,
+                True,
+                'dashboard_portal:seacraft_dashboard',
+                'Previous Seacraft Operator',
+            ),
+        ):
+            with self.subTest(dashboard=dashboard):
+                driver = Driver.objects.create(name=driver_name)
+                vehicle.assigned_driver = driver
+                vehicle.save()
+                vehicle.status = 'MAINTENANCE'
+                vehicle.maintenance_problem = 'Engine: Reported fault.'
+                vehicle.assigned_driver = None
+                vehicle.save()
+
+                self.client.force_login(
+                    self.sea_mechanic if is_seacraft else self.land_mechanic
+                )
+                response = self.client.get(reverse(dashboard))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertContains(response, 'Last assigned driver:')
+                self.assertContains(response, driver_name)
+
     def post_as_mechanic(self, vehicle, action, *, is_seacraft=False, **data):
         user = self.sea_mechanic if is_seacraft else self.land_mechanic
         url_name = 'dashboard_portal:seacraft_dashboard' if is_seacraft else 'dashboard_portal:repairman_dashboard'
@@ -1442,6 +1693,14 @@ class MechanicMaintenanceWorkflowTests(TestCase):
                 self.assertContains(response, 'Maintenance Workbench')
                 self.assertContains(response, 'data-menu-action="print"')
                 self.assertContains(response, 'data-menu-action="generate-report"')
+                drawer_order = (
+                    'data-menu-action="file-incident"',
+                    'data-menu-action="print-incident"',
+                    'data-menu-action="generate-report"',
+                    'data-menu-action="print"',
+                )
+                drawer_positions = [response.content.index(action.encode()) for action in drawer_order]
+                self.assertEqual(drawer_positions, sorted(drawer_positions))
                 self.assertContains(response, 'Log Out')
                 self.assertContains(response, 'Generate Fleet Report')
                 self.assertContains(response, 'value="custom">Custom date range')
@@ -1913,9 +2172,15 @@ class MechanicMaintenanceWorkflowTests(TestCase):
                 response = self.client.get(reverse(url_name))
                 self.assertContains(response, 'Return-to-service checklist')
                 self.assertContains(response, 'User-reported test fault.')
+                self.assertContains(response, 'FAULT REPAIR')
                 if not is_seacraft:
                     self.assertContains(response, 'data-land-fleet-group="maintenance">')
                 else:
                     self.assertContains(response, 'data-sea-fleet-group="maintenance">')
                 self.assertContains(response, 'class="maintenance-checklist"')
                 self.assertNotContains(response, 'STATUS_TOGGLE')
+                vehicle.maintenance_problem = 'Scheduled Tire replacement is due.'
+                vehicle.save(update_fields=['maintenance_problem'])
+                response = self.client.get(reverse(url_name))
+                self.assertContains(response, 'REGULAR MAINTENANCE')
+                self.assertContains(response, 'bg-sky-50' if is_seacraft else 'bg-info-subtle')

@@ -586,6 +586,15 @@ def logistics_generate_report(request):
             occurred_at__gte=start_datetime,
             occurred_at__lt=end_datetime,
         ).select_related('vehicle__vehicle_type', 'reported_by')
+        incident_id = request.GET.get('incident_id')
+        if incident_id:
+            try:
+                incident_id = int(incident_id)
+                if incident_id < 1:
+                    raise ValueError
+            except ValueError:
+                return HttpResponse("Choose a valid incident report.", status=400)
+            incident_query = incident_query.filter(pk=incident_id)
         if not is_logistics:
             incident_division_filter = Q(pk__in=[])
             if 'Land Asset' in allowed_divisions:
@@ -965,6 +974,7 @@ def repairman_dashboard(request):
             default=Value(5),
             output_field=IntegerField(),
         ),
+        'maintenance_started_at',
         'model_name'
     )
     vehicles = add_disposal_reasons(vehicles)
@@ -1082,6 +1092,7 @@ def seacraft_dashboard(request):
             default=Value(5),
             output_field=IntegerField(),
         ),
+        'maintenance_started_at',
         'model_name'
     )
     vehicles = add_disposal_reasons(vehicles)
@@ -1435,6 +1446,10 @@ def logistics_dashboard(request):
         'incident_form': FleetIncidentForm(
             vehicle_queryset=all_vehicles.select_related('vehicle_type'),
         ),
+        'incident_records': FleetIncident.objects.select_related(
+            'vehicle__vehicle_type',
+            'reported_by',
+        ).order_by('-occurred_at', '-pk'),
     }
     return render(request, 'fleet/logistics_dashboard.html', context)
 

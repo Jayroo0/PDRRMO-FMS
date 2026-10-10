@@ -87,17 +87,14 @@
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close menu"></button>
         </div>
         <div class="offcanvas-body d-flex flex-column gap-2 bg-light">
-            <button type="button" class="btn btn-outline-secondary text-start fw-semibold logistics-menu-action" data-menu-action="print">
-                <i class="fa-solid fa-print me-2"></i>Print Dashboard
-            </button>
-            <button type="button" class="btn btn-teal text-white text-start fw-semibold logistics-menu-action" data-menu-action="operators">
-                <i class="fa-solid fa-user-gear me-2"></i>Personnel Operator Assignment
+            <button type="button" class="btn btn-orange text-white text-start fw-semibold logistics-menu-action" data-menu-action="add-asset">
+                <i class="fa-solid fa-plus me-2"></i>Onboard New Fleet Asset
             </button>
             <button type="button" class="btn btn-outline-primary text-start fw-semibold logistics-menu-action" data-menu-action="add-operator">
                 <i class="fa-solid fa-user-plus me-2"></i>Add Driver / Operator
             </button>
-            <button type="button" class="btn btn-outline-success text-start fw-semibold logistics-menu-action" data-menu-action="generate-report">
-                <i class="fa-solid fa-file-export me-2"></i>Generate Report
+            <button type="button" class="btn btn-teal text-white text-start fw-semibold logistics-menu-action" data-menu-action="operators">
+                <i class="fa-solid fa-user-gear me-2"></i>Personnel Operator Assignment
             </button>
             <button type="button" class="btn btn-outline-danger text-start fw-semibold logistics-menu-action" data-menu-action="file-incident">
                 <i class="fa-solid fa-triangle-exclamation me-2"></i>File Incident Report
@@ -105,8 +102,14 @@
             <button type="button" class="btn btn-outline-primary text-start fw-semibold logistics-menu-action" data-menu-action="print-incident">
                 <i class="fa-solid fa-print me-2"></i>Print Incident Report
             </button>
-            <button type="button" class="btn btn-orange text-white text-start fw-semibold logistics-menu-action" data-menu-action="add-asset">
-                <i class="fa-solid fa-plus me-2"></i>Onboard New Fleet Asset
+            <button type="button" class="btn btn-outline-info text-start fw-semibold logistics-menu-action" data-menu-action="view-incidents">
+                <i class="fa-solid fa-list-check me-2"></i>View Filed Incident Reports
+            </button>
+            <button type="button" class="btn btn-outline-success text-start fw-semibold logistics-menu-action" data-menu-action="generate-report">
+                <i class="fa-solid fa-file-export me-2"></i>Generate Report
+            </button>
+            <button type="button" class="btn btn-outline-secondary text-start fw-semibold logistics-menu-action" data-menu-action="print">
+                <i class="fa-solid fa-print me-2"></i>Print Dashboard
             </button>
             <div class="mt-auto pt-3 border-top">
                 <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="m-0">
@@ -504,6 +507,90 @@
             </div>
         </div>
     </div>
+
+    <section class="container-fluid px-4 mb-5" id="filedIncidentReports" aria-labelledby="filedIncidentReportsTitle">
+        <div class="card shadow-sm border-0">
+            <div class="panel-header-custom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h2 class="h5 mb-0" id="filedIncidentReportsTitle">
+                    <i class="fa-solid fa-triangle-exclamation me-2 text-warning"></i>Filed Fleet Incident Reports
+                    <span class="badge bg-light text-dark ms-2">{{ incident_records|length }}</span>
+                </h2>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Reference</th>
+                                <th scope="col">Occurred</th>
+                                <th scope="col">Incident</th>
+                                <th scope="col">Fleet asset</th>
+                                <th scope="col">Location</th>
+                                <th scope="col">Last assigned operator</th>
+                                <th scope="col">Reported by</th>
+                                <th scope="col">Report details</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for incident in incident_records %}
+                            <tr>
+                                <td class="font-monospace">IR-{{ incident.occurred_at|date:"Y" }}-{{ incident.pk|stringformat:"06d" }}</td>
+                                <td>{{ incident.occurred_at|date:"M j, Y, P" }}</td>
+                                <td>{{ incident.get_incident_type_display }}</td>
+                                <td>
+                                    <strong>{{ incident.vehicle.model_name }}</strong>
+                                    <div class="small text-muted">{{ incident.vehicle.plate_number }}</div>
+                                </td>
+                                <td>{{ incident.location }}</td>
+                                <td>{{ incident.last_assigned_driver|default:"Not recorded" }}</td>
+                                <td>{% if incident.reported_by %}{{ incident.reported_by.get_full_name|default:incident.reported_by.username }}{% else %}System{% endif %}</td>
+                                <td>
+                                    <details>
+                                        <summary class="text-primary fw-semibold">View report</summary>
+                                        <dl class="small mb-0 mt-2">
+                                            <dt>Description</dt>
+                                            <dd>{{ incident.description }}</dd>
+                                            <dt>Damage</dt>
+                                            <dd>{{ incident.damage_details|default:"None reported" }}</dd>
+                                            <dt>Injuries</dt>
+                                            <dd>{{ incident.get_injury_status_display }}{% if incident.injury_details %} — {{ incident.injury_details }}{% endif %}</dd>
+                                            <dt>Witnesses</dt>
+                                            <dd>{{ incident.witnesses|default:"Not recorded" }}</dd>
+                                            <dt>Actions taken</dt>
+                                            <dd>{{ incident.actions_taken|default:"Not recorded" }}</dd>
+                                            <dt>Follow-up recommendations</dt>
+                                            <dd>{{ incident.follow_up_recommendations|default:"Not recorded" }}</dd>
+                                            <dt>Submitted</dt>
+                                            <dd>{{ incident.created_at|date:"M j, Y, P" }}</dd>
+                                        </dl>
+                                    </details>
+                                </td>
+                                <td class="text-nowrap">
+                                    <a class="btn btn-sm btn-outline-primary"
+                                       href="{% url 'dashboard_portal:fleet_activity_report' %}?report_kind=incident&amp;period=day&amp;day={{ incident.occurred_at|date:'Y-m-d' }}&amp;incident_id={{ incident.pk }}&amp;format=print"
+                                       target="_blank" rel="noopener"
+                                       aria-label="Print incident report IR-{{ incident.occurred_at|date:'Y' }}-{{ incident.pk|stringformat:'06d' }}"
+                                       title="Print incident report">
+                                        <i class="fa-solid fa-print" aria-hidden="true"></i>
+                                    </a>
+                                    <a class="btn btn-sm btn-outline-success"
+                                       href="{% url 'dashboard_portal:fleet_activity_report' %}?report_kind=incident&amp;period=day&amp;day={{ incident.occurred_at|date:'Y-m-d' }}&amp;incident_id={{ incident.pk }}&amp;format=pdf"
+                                       aria-label="Export incident report IR-{{ incident.occurred_at|date:'Y' }}-{{ incident.pk|stringformat:'06d' }} as PDF"
+                                       title="Export incident report as PDF">
+                                        <i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="9" class="py-4 text-center text-muted">No fleet incident reports have been filed.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <div class="modal fade" id="addOperatorModal" tabindex="-1" aria-labelledby="addOperatorModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -1035,6 +1122,11 @@
                         return;
                     }
 
+                    if (action === 'view-incidents') {
+                        document.getElementById('filedIncidentReports').scrollIntoView({ behavior: 'smooth' });
+                        return;
+                    }
+
                     const modalTargets = {
                         'add-operator': '#addOperatorModal',
                         'add-asset': '#addVehicleModal',
@@ -1048,11 +1140,7 @@
                     }
 
                     if (action === 'print-incident') {
-                        const reportKind = document.getElementById('report-kind');
-                        reportKind.value = 'incident';
-                        reportKind.dispatchEvent(new Event('change'));
-                        const reportModal = document.getElementById('generateReportModal');
-                        bootstrap.Modal.getOrCreateInstance(reportModal).show();
+                        openIncidentExports();
                         return;
                     }
 
@@ -1061,6 +1149,15 @@
                         bootstrap.Offcanvas.getOrCreateInstance(assignmentDrawer).show();
                     }
                 });
+            }
+
+            function openIncidentExports() {
+                const reportKind = document.getElementById('report-kind');
+                reportKind.value = 'incident';
+                reportKind.dispatchEvent(new Event('change'));
+                bootstrap.Modal.getOrCreateInstance(
+                    document.getElementById('generateReportModal')
+                ).show();
             }
 
             document.querySelectorAll('form').forEach(form => {
