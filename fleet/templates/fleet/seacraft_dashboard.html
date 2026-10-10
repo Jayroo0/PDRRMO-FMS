@@ -156,6 +156,9 @@
         </div>
     </main>
 
+    {% include "fleet/_mechanic_incident_reports.html" %}
+    {% include "fleet/_fleet_incident_modal.html" %}
+
     {% for craft in vehicles %}
         {% if craft.status == 'MAINTENANCE' or craft.status == 'PENDING_DISPOSAL' or craft.status == 'OPERATIONAL' or craft.status == 'DEPLOYED' %}
         <div class="modal fade" id="seaMaintenanceModal{{ craft.id }}" tabindex="-1" aria-labelledby="seaMaintenanceModalLabel{{ craft.id }}" aria-hidden="true">

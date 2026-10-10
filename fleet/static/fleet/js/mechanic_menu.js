@@ -17,6 +17,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
         if (action === 'print') {
             window.print();
+        } else if (action === 'view-incidents') {
+            document.getElementById('filedIncidentReports').scrollIntoView({ behavior: 'smooth' });
         } else if (action === 'generate-report') {
             const reportModal = document.getElementById('generateReportModal');
             bootstrap.Modal.getOrCreateInstance(reportModal).show();

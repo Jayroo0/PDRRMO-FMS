@@ -504,6 +504,60 @@ def fleet_report_incident(request):
 
 
 @login_required
+def fleet_edit_incident(request, incident_id):
+    if request.method not in {'GET', 'POST'}:
+        return HttpResponse("Incident reports can only be edited using the report form.", status=405)
+
+    permissions = fleet_report_permissions(request.user)
+    if permissions is None:
+        messages.error(request, "Access restricted to authorized fleet operations and maintenance accounts.")
+        return redirect('dashboard_portal:homepage')
+
+    incident = get_object_or_404(
+        FleetIncident.objects.filter(reported_by=request.user).select_related('vehicle__vehicle_type'),
+        pk=incident_id,
+    )
+
+    vehicle_queryset = Vehicle.objects.select_related('vehicle_type')
+    if not permissions['is_logistics']:
+        division_filter = Q(pk__in=[])
+        if 'Land Asset' in permissions['allowed_divisions']:
+            division_filter |= ~seacraft_vehicle_type_filter()
+        if 'Seacraft' in permissions['allowed_divisions']:
+            division_filter |= seacraft_vehicle_type_filter()
+        vehicle_queryset = vehicle_queryset.filter(division_filter)
+        if not vehicle_queryset.filter(pk=incident.vehicle_id).exists():
+            return HttpResponse("You are not authorized to edit this incident report.", status=404)
+
+    dashboard_name = fleet_report_dashboard_name(permissions)
+    form = FleetIncidentForm(
+        request.POST if request.method == 'POST' else None,
+        instance=incident,
+        vehicle_queryset=vehicle_queryset,
+    )
+    if request.method == 'POST':
+        if form.is_valid():
+            updated_incident = form.save(commit=False)
+            updated_incident.save()
+            log_action_to_admin(
+                request,
+                updated_incident,
+                CHANGE,
+                f"Updated {updated_incident.get_incident_type_display().lower()} report for {updated_incident.vehicle}.",
+            )
+            messages.success(request, "Your incident report was updated.")
+            return redirect(dashboard_name)
+
+        messages.error(request, "Please correct the errors below and resubmit the incident report.")
+
+    return render(request, 'fleet/fleet_incident_edit.html', {
+        'form': form,
+        'incident': incident,
+        'dashboard_name': dashboard_name,
+    }, status=400 if request.method == 'POST' else 200)
+
+
+@login_required
 def logistics_generate_report(request):
     permissions = fleet_report_permissions(request.user)
     if permissions is None:
@@ -1000,6 +1054,14 @@ def repairman_dashboard(request):
             vehicle.status in {'OPERATIONAL', 'DEPLOYED'}
             for vehicle in vehicles
         ),
+        'incident_report_title': 'My Filed Land Asset Incident Reports',
+        'incident_records': FleetIncident.objects.filter(
+            reported_by=user,
+            vehicle__in=Vehicle.objects.exclude(seacraft_vehicle_type_filter()),
+        ).select_related(
+            'vehicle__vehicle_type',
+            'reported_by',
+        ).order_by('-occurred_at', '-pk'),
     })
 
 
@@ -1118,6 +1180,14 @@ def seacraft_dashboard(request):
             vehicle.status in {'OPERATIONAL', 'DEPLOYED'}
             for vehicle in vehicles
         ),
+        'incident_report_title': 'My Filed Seacraft Incident Reports',
+        'incident_records': FleetIncident.objects.filter(
+            reported_by=user,
+            vehicle__in=Vehicle.objects.filter(seacraft_vehicle_type_filter()),
+        ).select_related(
+            'vehicle__vehicle_type',
+            'reported_by',
+        ).order_by('-occurred_at', '-pk'),
     })
 
 
@@ -1764,5 +1834,11 @@ def seacraft_dispatch_view(request):
             "incident_form": FleetIncidentForm(
                 vehicle_queryset=sea_crafts.select_related('vehicle_type'),
             ),
+            "incident_records": FleetIncident.objects.filter(
+                vehicle__in=Vehicle.objects.filter(seacraft_vehicle_type_filter())
+            ).select_related(
+                'vehicle__vehicle_type',
+                'reported_by',
+            ).order_by('-occurred_at', '-pk'),
         },
     )

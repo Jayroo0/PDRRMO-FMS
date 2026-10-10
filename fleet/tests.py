@@ -628,6 +628,8 @@ class LogisticsReportExportTests(TestCase):
                     self.assertContains(report, 'Last Assigned Sea Operator')
                     self.assertContains(report, 'Provincial Disaster Risk Reduction and Management Office')
                     self.assertContains(report, 'Prepared by / Date')
+                    self.assertContains(report, 'onclick="window.history.back()"')
+                    self.assertContains(report, 'Return</button>')
                     self.assertContains(report, 'Print Incident Report')
                     self.assertContains(report, 'Witnesses')
                     self.assertContains(report, 'Response team lead')
@@ -966,6 +968,74 @@ class DispatchDashboardAlignmentTests(TestCase):
         operator = Driver.objects.get(name='Dispatch Added Operator')
         self.assertEqual(operator.license_authority, 'MARINA')
         self.assertEqual(operator.license_number, 'MRA-300')
+
+    def test_seacraft_dispatch_lists_only_seacraft_incidents_with_row_actions(self):
+        seacraft = self.create_vehicle(
+            model_name='Incident Test Vessel',
+            plate_number='SEA-INCIDENT-01',
+            vehicle_type=self.marine_type,
+        )
+        land_vehicle = self.create_vehicle(
+            model_name='Incident Test Land Vehicle',
+            plate_number='LAND-INCIDENT-01',
+            vehicle_type=self.land_type,
+        )
+        incident = FleetIncident.objects.create(
+            vehicle=seacraft,
+            incident_type='BREAKDOWN',
+            occurred_at=timezone.now(),
+            location='Honda Bay',
+            description='Engine stopped during patrol.',
+            damage_details='Fuel line inspection required.',
+            injury_status='NO',
+            last_assigned_driver='Seacraft Test Operator',
+            reported_by=self.seacraft_user,
+        )
+        land_incident = FleetIncident.objects.create(
+            vehicle=land_vehicle,
+            incident_type='DAMAGE',
+            occurred_at=timezone.now(),
+            location='Puerto Princesa',
+            description='Land vehicle report should not appear.',
+        )
+        self.client.force_login(self.seacraft_user)
+
+        response = self.client.get(reverse('dashboard_portal:seacraft_dispatch'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(list(response.context['incident_records']), [incident])
+        self.assertContains(response, 'Filed Seacraft Incident Reports')
+        self.assertContains(response, 'Engine stopped during patrol.')
+        self.assertContains(response, 'Fuel line inspection required.')
+        self.assertContains(response, 'Seacraft Test Operator')
+        self.assertContains(response, 'title="Print incident report"')
+        self.assertContains(response, 'title="Export incident report as PDF"')
+        self.assertContains(response, f'incident_id={incident.pk}&amp;format=print')
+        self.assertContains(response, f'incident_id={incident.pk}&amp;format=pdf')
+        self.assertContains(response, 'data-menu-action="view-incidents"')
+        self.assertNotContains(response, land_incident.description)
+
+        report_params = {
+            'report_kind': 'incident',
+            'period': 'day',
+            'day': timezone.localtime(incident.occurred_at).date().isoformat(),
+            'incident_id': incident.pk,
+        }
+        printable_report = self.client.get(
+            reverse('dashboard_portal:fleet_activity_report'),
+            {**report_params, 'format': 'print'},
+        )
+        self.assertEqual(printable_report.status_code, 200)
+        self.assertContains(printable_report, incident.description)
+        self.assertNotContains(printable_report, land_incident.description)
+
+        exported_report = self.client.get(
+            reverse('dashboard_portal:fleet_activity_report'),
+            {**report_params, 'format': 'pdf'},
+        )
+        self.assertEqual(exported_report.status_code, 200)
+        self.assertEqual(exported_report['Content-Type'], 'application/pdf')
+        self.assertTrue(exported_report.content.startswith(b'%PDF'))
 
     def test_seacraft_dispatch_can_register_seacraft_from_menu(self):
         self.client.force_login(self.seacraft_user)
@@ -1546,6 +1616,134 @@ class MechanicMaintenanceWorkflowTests(TestCase):
             plate_number='SEA-WORK-01',
             vehicle_type=self.marine_type,
         )
+
+    def test_mechanic_dashboards_list_only_own_incidents_with_print_export_and_edit(self):
+        land_incident = FleetIncident.objects.create(
+            vehicle=self.land_vehicle,
+            incident_type='DAMAGE',
+            occurred_at=timezone.now(),
+            location='Land response site',
+            description='Land mechanic own report.',
+            injury_status='NO',
+            last_assigned_driver='Land operator snapshot',
+            reported_by=self.land_mechanic,
+        )
+        other_land_incident = FleetIncident.objects.create(
+            vehicle=self.land_vehicle,
+            incident_type='ACCIDENT',
+            occurred_at=timezone.now(),
+            location='Other land site',
+            description='Another user land report.',
+            injury_status='NO',
+            reported_by=self.sea_mechanic,
+        )
+        sea_incident = FleetIncident.objects.create(
+            vehicle=self.seacraft,
+            incident_type='BREAKDOWN',
+            occurred_at=timezone.now(),
+            location='Seacraft response site',
+            description='Seacraft mechanic own report.',
+            injury_status='NO',
+            last_assigned_driver='Sea operator snapshot',
+            reported_by=self.sea_mechanic,
+        )
+        other_sea_incident = FleetIncident.objects.create(
+            vehicle=self.seacraft,
+            incident_type='SAFETY',
+            occurred_at=timezone.now(),
+            location='Other seacraft site',
+            description='Another user seacraft report.',
+            injury_status='NO',
+            reported_by=self.land_mechanic,
+        )
+
+        for user, dashboard, own_incident, hidden_incident in (
+            (
+                self.land_mechanic,
+                'dashboard_portal:repairman_dashboard',
+                land_incident,
+                other_land_incident,
+            ),
+            (
+                self.sea_mechanic,
+                'dashboard_portal:seacraft_dashboard',
+                sea_incident,
+                other_sea_incident,
+            ),
+        ):
+            with self.subTest(dashboard=dashboard):
+                self.client.force_login(user)
+                response = self.client.get(reverse(dashboard))
+
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(list(response.context['incident_records']), [own_incident])
+                self.assertContains(response, own_incident.description)
+                self.assertContains(response, 'title="Print incident report"')
+                self.assertContains(response, 'title="Export incident report as PDF"')
+                self.assertContains(response, 'title="Edit incident report"')
+                self.assertContains(response, f'incident_id={own_incident.pk}&amp;format=print')
+                self.assertContains(response, f'incident_id={own_incident.pk}&amp;format=pdf')
+                self.assertNotContains(response, hidden_incident.description)
+                self.assertContains(response, 'data-menu-action="view-incidents"')
+
+    def test_mechanic_can_edit_own_incident_but_not_another_users_report(self):
+        incident = FleetIncident.objects.create(
+            vehicle=self.land_vehicle,
+            incident_type='DAMAGE',
+            occurred_at=timezone.now(),
+            location='Original location',
+            description='Original incident description.',
+            injury_status='NO',
+            last_assigned_driver='Original operator snapshot',
+            reported_by=self.land_mechanic,
+        )
+        edit_url = reverse(
+            'dashboard_portal:fleet_edit_incident',
+            args=[incident.pk],
+        )
+        self.client.force_login(self.land_mechanic)
+
+        edit_page = self.client.get(edit_url)
+        self.assertEqual(edit_page.status_code, 200)
+        self.assertContains(edit_page, 'Original incident description.')
+
+        response = self.client.post(
+            edit_url,
+            {
+                'vehicle': self.land_vehicle.pk,
+                'incident_type': 'ACCIDENT',
+                'occurred_at': timezone.localtime(incident.occurred_at).strftime('%Y-%m-%dT%H:%M'),
+                'location': 'Updated location',
+                'description': 'Updated incident description.',
+                'damage_details': 'Updated damage details.',
+                'injury_status': 'NO',
+                'injury_details': '',
+                'witnesses': 'Updated witnesses.',
+                'actions_taken': 'Updated actions.',
+                'follow_up_recommendations': 'Updated follow-up.',
+            },
+            follow=True,
+        )
+        self.assertRedirects(response, reverse('dashboard_portal:repairman_dashboard'))
+        incident.refresh_from_db()
+        self.assertEqual(incident.description, 'Updated incident description.')
+        self.assertEqual(incident.location, 'Updated location')
+        self.assertEqual(incident.reported_by, self.land_mechanic)
+        self.assertEqual(incident.last_assigned_driver, 'Original operator snapshot')
+
+        another_users_report = FleetIncident.objects.create(
+            vehicle=self.land_vehicle,
+            incident_type='DAMAGE',
+            occurred_at=timezone.now(),
+            location='Private report',
+            description='Not editable by this user.',
+            injury_status='NO',
+            reported_by=self.sea_mechanic,
+        )
+        denied = self.client.get(
+            reverse('dashboard_portal:fleet_edit_incident', args=[another_users_report.pk]),
+        )
+        self.assertEqual(denied.status_code, 404)
 
     def test_maintenance_work_orders_are_sorted_first_come_first_served(self):
         for vehicle, is_seacraft, vehicle_type, dashboard in (

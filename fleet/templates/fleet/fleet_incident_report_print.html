@@ -17,8 +17,18 @@
         }
         .toolbar {
             display: flex;
+            gap: 10px;
             justify-content: flex-end;
             margin-bottom: 18px;
+        }
+        .return-button {
+            background: #e2e8f0;
+            border: 0;
+            border-radius: 4px;
+            color: #172033;
+            cursor: pointer;
+            font-size: 10pt;
+            padding: 10px 16px;
         }
         .print-button {
             background: #1a365d;
@@ -156,6 +166,7 @@
 </head>
 <body>
     <div class="toolbar">
+        <button class="return-button" type="button" onclick="window.history.back()">Return</button>
         <button class="print-button" type="button" onclick="window.print()">Print Incident Report</button>
     </div>
     <header class="masthead">

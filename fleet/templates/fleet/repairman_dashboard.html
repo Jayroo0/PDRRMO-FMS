@@ -180,6 +180,9 @@
         </div>
     </div>
 
+    {% include "fleet/_mechanic_incident_reports.html" %}
+    {% include "fleet/_fleet_incident_modal.html" %}
+
     {% for vehicle in vehicles %}
         {% if vehicle.status == 'MAINTENANCE' or vehicle.status == 'PENDING_DISPOSAL' or vehicle.status == 'OPERATIONAL' or vehicle.status == 'DEPLOYED' %}
         <div class="modal fade" id="landMaintenanceModal{{ vehicle.id }}" tabindex="-1" aria-labelledby="landMaintenanceModalLabel{{ vehicle.id }}" aria-hidden="true">
