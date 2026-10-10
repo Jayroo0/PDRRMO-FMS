@@ -18,10 +18,16 @@
         .btn-teal:hover { background-color: #0284C7; color: white; }
         .panel-header-custom { background-color: #1A365D; color: white; padding: 12px 20px; font-weight: bold; border-radius: 4px 4px 0 0; }
         .asset-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: .75rem; }
+        .logistics-asset-grid { display: flex; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; gap: .75rem; padding-bottom: .75rem; overscroll-behavior-x: contain; scrollbar-width: thin; }
+        .logistics-asset-grid > .asset-card { flex: 0 0 320px; max-width: 320px; }
+        .logistics-asset-grid > .asset-grid-empty { flex: 0 0 100%; }
         .asset-grid-empty { grid-column: 1 / -1; }
         .asset-card { border: 1px solid #dee2e6; border-top: 4px solid #1A365D; border-radius: .5rem; background: #fff; height: 100%; }
         .asset-card-maritime { border-top-color: #0284C7; }
         .asset-card-image { display: block; width: 100%; height: 72px; object-fit: contain; background: #f1f5f9; border-radius: .35rem; }
+        @media (max-width: 576px) {
+            .logistics-asset-grid > .asset-card { flex-basis: min(84vw, 320px); }
+        }
         
         .custom-tabs .nav-link {
             color: #475569;
@@ -59,36 +65,64 @@
             <span> PDRRMO Logistics Command Portal</span>
         </span>
         
-        <div class="d-flex align-items-center gap-2">
-            <button type="button" class="dashboard-print-trigger" aria-label="Print dashboard">
-                <i class="fa-solid fa-print" aria-hidden="true"></i> Print
+        <div class="d-flex align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-light fw-bold px-3"
+                    data-bs-toggle="offcanvas" data-bs-target="#logisticsMenuDrawer"
+                    aria-controls="logisticsMenuDrawer" aria-label="Open logistics menu">
+                <i class="fa-solid fa-bars me-1"></i> Menu
             </button>
-            <button type="button" class="btn btn-sm btn-teal fw-bold px-3" 
-                    data-bs-toggle="offcanvas" 
-                    data-bs-target="#operatorAssignmentDrawer">
-                <i class="fa-solid fa-user-gear me-1"></i> Personnel Operator Assignment
-            </button>
-            <button type="button" class="btn btn-sm btn-orange fw-bold px-3 text-white" 
-                    id="onboard-trigger-btn"
-                    data-bs-toggle="modal" 
-                    data-bs-target="#addVehicleModal">
-                <i class="fa-solid fa-plus me-1"></i> Onboard New Fleet Asset
-            </button>
-            
-            {% if user.is_authenticated %}
-            <span class="text-white small fw-bold bg-dark bg-opacity-25 px-2 py-1 rounded-2 border border-secondary-subtle">
-                <i class="fa-solid fa-user text-info me-1"></i> {{ user.username }}
-            </span>
-            {% endif %}
-            
-            <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="d-inline m-0">
-                {% csrf_token %}
-                <button type="submit" class="btn btn-sm btn-outline-light fw-bold px-3">
-                    <i class="fa-solid fa-right-from-bracket me-1"></i> Log Out
-                </button>
-            </form>
         </div>
     </nav>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="logisticsMenuDrawer" aria-labelledby="logisticsMenuDrawerLabel">
+        <div class="offcanvas-header text-white" style="background-color: #1A365D;">
+            <div>
+                <h5 class="offcanvas-title fw-bold mb-1" id="logisticsMenuDrawerLabel">
+                    <i class="fa-solid fa-bars-staggered text-info me-2"></i>Logistics Menu
+                </h5>
+                {% if user.is_authenticated %}
+                <div class="small text-white-50"><i class="fa-solid fa-user me-1"></i>{{ user.username }}</div>
+                {% endif %}
+            </div>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close menu"></button>
+        </div>
+        <div class="offcanvas-body d-flex flex-column gap-2 bg-light">
+            <button type="button" class="btn btn-orange text-white text-start fw-semibold logistics-menu-action" data-menu-action="add-asset">
+                <i class="fa-solid fa-plus me-2"></i>Onboard New Fleet Asset
+            </button>
+            <button type="button" class="btn btn-outline-primary text-start fw-semibold logistics-menu-action" data-menu-action="add-operator">
+                <i class="fa-solid fa-user-plus me-2"></i>Add Driver / Operator
+            </button>
+            <button type="button" class="btn btn-teal text-white text-start fw-semibold logistics-menu-action" data-menu-action="operators">
+                <i class="fa-solid fa-user-gear me-2"></i>Personnel Operator Assignment
+            </button>
+            <button type="button" class="btn btn-outline-danger text-start fw-semibold logistics-menu-action" data-menu-action="file-incident">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>File Incident Report
+            </button>
+            <button type="button" class="btn btn-outline-primary text-start fw-semibold logistics-menu-action" data-menu-action="print-incident">
+                <i class="fa-solid fa-print me-2"></i>Print Incident Report
+            </button>
+            <button type="button" class="btn btn-outline-info text-start fw-semibold logistics-menu-action" data-menu-action="view-incidents">
+                <i class="fa-solid fa-list-check me-2"></i>View Filed Incident Reports
+            </button>
+            <button type="button" class="btn btn-outline-success text-start fw-semibold logistics-menu-action" data-menu-action="generate-report">
+                <i class="fa-solid fa-file-export me-2"></i>Generate Report
+            </button>
+            <button type="button" class="btn btn-outline-secondary text-start fw-semibold logistics-menu-action" data-menu-action="print">
+                <i class="fa-solid fa-print me-2"></i>Print Dashboard
+            </button>
+            <div class="mt-auto pt-3 border-top">
+                <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="m-0">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-outline-danger fw-bold w-100 text-start">
+                        <i class="fa-solid fa-right-from-bracket me-2"></i>Log Out
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {% include "fleet/_activity_report_modal.html" %}
 
     <div class="container-fluid px-4">
         {% if messages %}
@@ -138,7 +172,7 @@
                 <div class="tab-content" id="landTabsContent">
                     <!-- STANDBY TAB -->
                     <div class="tab-pane fade show active" id="land-standby-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for vehicle in land_standby %}
                             <article class="asset-card shadow-sm">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -147,6 +181,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ vehicle.model_name }}</h5>
                                             <div class="text-muted small">{{ vehicle.vehicle_type.name }}</div>
+                                            {% include "fleet/_land_vehicle_specs.html" with vehicle=vehicle %}
                                         </div>
                                         <span class="badge bg-success">OPERATIONAL</span>
                                     </div>
@@ -181,7 +216,7 @@
 
                     <!-- ACTIVE DEPLOYMENTS TAB -->
                     <div class="tab-pane fade" id="land-deployed-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for vehicle in land_deployed %}
                             <article class="asset-card shadow-sm border-primary">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -190,6 +225,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ vehicle.model_name }}</h5>
                                             <div class="text-muted small">{{ vehicle.vehicle_type.name }}</div>
+                                            {% include "fleet/_land_vehicle_specs.html" with vehicle=vehicle %}
                                         </div>
                                         <span class="badge bg-primary">DEPLOYED</span>
                                     </div>
@@ -222,7 +258,7 @@
 
                     <!-- MAINTENANCE TAB -->
                     <div class="tab-pane fade" id="land-maint-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for vehicle in land_maintenance %}
                             <article class="asset-card shadow-sm border-danger">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -231,6 +267,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ vehicle.model_name }}</h5>
                                             <div class="text-muted small">{{ vehicle.vehicle_type.name }}</div>
+                                            {% include "fleet/_land_vehicle_specs.html" with vehicle=vehicle %}
                                         </div>
                                         {% if vehicle.status == 'PENDING_DISPOSAL' %}
                                             <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
@@ -239,6 +276,11 @@
                                         {% endif %}
                                     </div>
                                     <div class="mb-2"><span class="badge bg-secondary font-monospace">{{ vehicle.plate_number }}</span></div>
+
+                                    <div class="small text-danger-emphasis border rounded bg-danger-subtle p-2 mb-3">
+                                        <strong>User-reported fault:</strong>
+                                        {{ vehicle.maintenance_problem|default:"No fault description recorded." }}
+                                    </div>
                                     
                                     <div class="mb-3 small">
                                         <span class="text-muted d-block small">Originally Assigned Operator:</span>
@@ -312,7 +354,7 @@
                 <div class="tab-content" id="seaTabsContent">
                     <!-- STANDBY TAB -->
                     <div class="tab-pane fade show active" id="sea-standby-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for craft in sea_standby %}
                             <article class="asset-card asset-card-maritime shadow-sm">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -321,6 +363,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ craft.model_name }}</h5>
                                             <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                            {% include "fleet/_seacraft_specs.html" with craft=craft %}
                                         </div>
                                         <span class="badge bg-success">OPERATIONAL</span>
                                     </div>
@@ -355,7 +398,7 @@
 
                     <!-- ACTIVE DEPLOYMENTS TAB -->
                     <div class="tab-pane fade" id="sea-deployed-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for craft in sea_deployed %}
                             <article class="asset-card asset-card-maritime shadow-sm border-primary">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -364,6 +407,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ craft.model_name }}</h5>
                                             <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                            {% include "fleet/_seacraft_specs.html" with craft=craft %}
                                         </div>
                                         <span class="badge bg-primary">DEPLOYED</span>
                                     </div>
@@ -396,7 +440,7 @@
 
                     <!-- MAINTENANCE TAB -->
                     <div class="tab-pane fade" id="sea-maint-pane" role="tabpanel">
-                        <div class="asset-grid">
+                        <div class="asset-grid logistics-asset-grid">
                             {% for craft in sea_maintenance %}
                             <article class="asset-card asset-card-maritime shadow-sm border-danger">
                                 <div class="asset-card-content p-3 d-flex flex-column h-100">
@@ -405,6 +449,7 @@
                                         <div>
                                             <h5 class="fs-6 fw-bold mb-0" style="color: #1A365D;">{{ craft.model_name }}</h5>
                                             <div class="text-muted small">{{ craft.vehicle_type.name }}</div>
+                                            {% include "fleet/_seacraft_specs.html" with craft=craft %}
                                         </div>
                                         {% if craft.status == 'PENDING_DISPOSAL' %}
                                             <span class="badge bg-dark border border-warning text-warning">PENDING DISPOSAL</span>
@@ -413,6 +458,11 @@
                                         {% endif %}
                                     </div>
                                     <div class="mb-2"><span class="badge bg-secondary font-monospace">{{ craft.plate_number }}</span></div>
+
+                                    <div class="small text-danger-emphasis border rounded bg-danger-subtle p-2 mb-3">
+                                        <strong>User-reported fault:</strong>
+                                        {{ craft.maintenance_problem|default:"No fault description recorded." }}
+                                    </div>
                                     
                                     <div class="mb-3 small">
                                         <span class="text-muted d-block small">Originally Assigned Operator:</span>
@@ -458,6 +508,131 @@
         </div>
     </div>
 
+    <section class="container-fluid px-4 mb-5" id="filedIncidentReports" aria-labelledby="filedIncidentReportsTitle">
+        <div class="card shadow-sm border-0">
+            <div class="panel-header-custom d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <h2 class="h5 mb-0" id="filedIncidentReportsTitle">
+                    <i class="fa-solid fa-triangle-exclamation me-2 text-warning"></i>Filed Fleet Incident Reports
+                    <span class="badge bg-light text-dark ms-2">{{ incident_records|length }}</span>
+                </h2>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Reference</th>
+                                <th scope="col">Occurred</th>
+                                <th scope="col">Incident</th>
+                                <th scope="col">Fleet asset</th>
+                                <th scope="col">Location</th>
+                                <th scope="col">Last assigned operator</th>
+                                <th scope="col">Reported by</th>
+                                <th scope="col">Report details</th>
+                                <th scope="col">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for incident in incident_records %}
+                            <tr>
+                                <td class="font-monospace">IR-{{ incident.occurred_at|date:"Y" }}-{{ incident.pk|stringformat:"06d" }}</td>
+                                <td>{{ incident.occurred_at|date:"M j, Y, P" }}</td>
+                                <td>{{ incident.get_incident_type_display }}</td>
+                                <td>
+                                    <strong>{{ incident.vehicle.model_name }}</strong>
+                                    <div class="small text-muted">{{ incident.vehicle.plate_number }}</div>
+                                </td>
+                                <td>{{ incident.location }}</td>
+                                <td>{{ incident.last_assigned_driver|default:"Not recorded" }}</td>
+                                <td>{% if incident.reported_by %}{{ incident.reported_by.get_full_name|default:incident.reported_by.username }}{% else %}System{% endif %}</td>
+                                <td>
+                                    <details>
+                                        <summary class="text-primary fw-semibold">View report</summary>
+                                        <dl class="small mb-0 mt-2">
+                                            <dt>Description</dt>
+                                            <dd>{{ incident.description }}</dd>
+                                            <dt>Damage</dt>
+                                            <dd>{{ incident.damage_details|default:"None reported" }}</dd>
+                                            <dt>Injuries</dt>
+                                            <dd>{{ incident.get_injury_status_display }}{% if incident.injury_details %} — {{ incident.injury_details }}{% endif %}</dd>
+                                            <dt>Witnesses</dt>
+                                            <dd>{{ incident.witnesses|default:"Not recorded" }}</dd>
+                                            <dt>Actions taken</dt>
+                                            <dd>{{ incident.actions_taken|default:"Not recorded" }}</dd>
+                                            <dt>Follow-up recommendations</dt>
+                                            <dd>{{ incident.follow_up_recommendations|default:"Not recorded" }}</dd>
+                                            <dt>Submitted</dt>
+                                            <dd>{{ incident.created_at|date:"M j, Y, P" }}</dd>
+                                        </dl>
+                                    </details>
+                                </td>
+                                <td class="text-nowrap">
+                                    <a class="btn btn-sm btn-outline-primary"
+                                       href="{% url 'dashboard_portal:fleet_activity_report' %}?report_kind=incident&amp;period=day&amp;day={{ incident.occurred_at|date:'Y-m-d' }}&amp;incident_id={{ incident.pk }}&amp;format=print"
+                                       target="_blank" rel="noopener"
+                                       aria-label="Print incident report IR-{{ incident.occurred_at|date:'Y' }}-{{ incident.pk|stringformat:'06d' }}"
+                                       title="Print incident report">
+                                        <i class="fa-solid fa-print" aria-hidden="true"></i>
+                                    </a>
+                                    <a class="btn btn-sm btn-outline-success"
+                                       href="{% url 'dashboard_portal:fleet_activity_report' %}?report_kind=incident&amp;period=day&amp;day={{ incident.occurred_at|date:'Y-m-d' }}&amp;incident_id={{ incident.pk }}&amp;format=pdf"
+                                       aria-label="Export incident report IR-{{ incident.occurred_at|date:'Y' }}-{{ incident.pk|stringformat:'06d' }} as PDF"
+                                       title="Export incident report as PDF">
+                                        <i class="fa-solid fa-file-arrow-down" aria-hidden="true"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="9" class="py-4 text-center text-muted">No fleet incident reports have been filed.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="modal fade" id="addOperatorModal" tabindex="-1" aria-labelledby="addOperatorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header text-white" style="background-color: #1A365D;">
+                    <h5 class="modal-title fw-bold" id="addOperatorModalLabel">
+                        <i class="fa-solid fa-user-plus text-info me-2"></i>Add Driver / Operator Details
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="post" action="{% url 'dashboard_portal:logistics_dashboard' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="add_operator">
+                    <div class="modal-body">
+                        <p class="text-muted small">Enter the license as shown.</p>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.operator_type.id_for_label }}">{{ operator_form.operator_type.label }}</label>
+                            {{ operator_form.operator_type }}
+                        </div>
+                        <div class="form-text mb-3" id="operator-authority-hint">Land vehicle driver license authority: LTO (automatic).</div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.name.id_for_label }}">{{ operator_form.name.label }}</label>
+                            {{ operator_form.name }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.license_number.id_for_label }}">{{ operator_form.license_number.label }}</label>
+                            {{ operator_form.license_number }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="{{ operator_form.phone_number.id_for_label }}">{{ operator_form.phone_number.label }}</label>
+                            {{ operator_form.phone_number }}
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary fw-bold"><i class="fa-solid fa-floppy-disk me-1"></i> Save Operator</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- MENU DRAWER: PERSONNEL OPERATOR ASSIGNMENT -->
     <div class="offcanvas offcanvas-end" tabindex="-1" id="operatorAssignmentDrawer" aria-labelledby="operatorDrawerLabel" style="min-width: 420px;">
         <div class="offcanvas-header text-white" style="background-color: #1A365D;">
@@ -466,13 +641,13 @@
             </h5>
             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
-        <div class="offcanvas-body bg-light">
+        <div class="offcanvas-body bg-light d-flex flex-column">
             <div class="alert alert-info small border-info d-flex align-items-center gap-2 mb-3">
                 <i class="fa-solid fa-triangle-exclamation fs-5"></i>
                 <div><strong>Standard Operating Rule:</strong> Personnel operators attached to maintenance units are available for temporary dispatch. Upon fleet repair completion, operators can be re-assigned back to their original unit.</div>
             </div>
 
-            <div class="accordion" id="drawerAccordion">
+            <div class="accordion flex-grow-1" id="drawerAccordion">
                 <div class="accordion-item mb-2 border rounded">
                     <h2 class="accordion-header" id="headingLand">
                         <button class="accordion-button fw-bold text-dark" type="button" data-bs-toggle="collapse" data-bs-target="#collapseLand" aria-expanded="true">
@@ -491,19 +666,18 @@
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="set_driver">
                                     <input type="hidden" name="vehicle_id" value="{{ vehicle.id }}">
-                                    <select name="driver_id" class="form-select form-select-sm" {% if vehicle.status == 'DEPLOYED' or vehicle.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
+                                    <select name="driver_id" class="form-select form-select-sm" onchange="this.form.submit()" {% if vehicle.status == 'DEPLOYED' or vehicle.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
                                         <option value="">-- Standby / Unassigned --</option>
                                         {% for driver in land_drivers %}
                                             {% if vehicle.assigned_driver and vehicle.assigned_driver.id == driver.id %}
-                                                <option value="{{ driver.id }}" selected>👤 {{ driver.name }} (Assigned)</option>
+                                                <option value="{{ driver.id }}" selected>👤 {{ driver.name }} · {{ driver.get_license_authority_display }} · {{ driver.license_number|default:"No license recorded" }} (Assigned)</option>
                                             {% elif driver.id not in assigned_driver_ids %}
-                                                <option value="{{ driver.id }}">👤 {{ driver.name }} [Available]</option>
+                                                <option value="{{ driver.id }}">👤 {{ driver.name }} · {{ driver.get_license_authority_display }} · {{ driver.license_number|default:"No license recorded" }} [Available]</option>
                                             {% else %}
                                                 <option value="{{ driver.id }}" disabled>👤 {{ driver.name }} [Assigned to Active Fleet]</option>
                                             {% endif %}
                                         {% endfor %}
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-primary" {% if vehicle.status == 'DEPLOYED' or vehicle.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>Save</button>
                                 </form>
                             </div>
                             {% empty %}
@@ -531,25 +705,25 @@
                                     {% csrf_token %}
                                     <input type="hidden" name="action" value="set_driver">
                                     <input type="hidden" name="vehicle_id" value="{{ craft.id }}">
-                                    <select name="driver_id" class="form-select form-select-sm" {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
+                                    <select name="driver_id" class="form-select form-select-sm" onchange="this.form.submit()" {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>
                                         <option value="">-- Standby / Unassigned --</option>
                                         {% for driver in sea_drivers %}
                                             {% if craft.assigned_driver and craft.assigned_driver.id == driver.id %}
-                                                <option value="{{ driver.id }}" selected>👤 {{ driver.name }} (Assigned)</option>
+                                                <option value="{{ driver.id }}" selected>👤 {{ driver.name }} · {{ driver.get_license_authority_display }} · {{ driver.license_number|default:"No license recorded" }} (Assigned)</option>
                                             {% elif driver.id not in assigned_driver_ids %}
-                                                <option value="{{ driver.id }}">👤 {{ driver.name }} [Available]</option>
+                                                <option value="{{ driver.id }}">👤 {{ driver.name }} · {{ driver.get_license_authority_display }} · {{ driver.license_number|default:"No license recorded" }} [Available]</option>
                                             {% else %}
                                                 <option value="{{ driver.id }}" disabled>👤 {{ driver.name }} [Assigned to Active Fleet]</option>
                                             {% endif %}
                                         {% endfor %}
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-primary" {% if craft.status == 'DEPLOYED' or craft.status == 'PENDING_DISPOSAL' %}disabled{% endif %}>Save</button>
                                 </form>
                             </div>
                             {% empty %}
                             <div class="small text-muted">No seacrafts registered.</div>
                             {% endfor %}
                         </div>
+                    </div>
                     </div>
                 </div>
             </div>
@@ -578,21 +752,20 @@
                             <select id="deploy_driver_select" name="driver_id" class="form-select" required>
                                 <option value="" disabled selected>-- Select Available Personnel Operator --</option>
                             </select>
-                            <div class="form-text small text-muted">Operators attached to maintenance units are re-assignable to active deployments.</div>
                         </div>
 
                         <!-- LOCATION INPUT -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold"><i class="fa-solid fa-map-location-dot text-danger me-1"></i> Deployment Location / Destination</label>
-                            <input type="text" id="deployment_location_input" name="deployment_location" class="form-control" placeholder="Search Palawan barangay, municipality, or landmark..." autocomplete="off" required>
-                            <div class="form-text small text-muted"><i class="fa-solid fa-location-crosshairs text-success me-1"></i> Restricted strictly to Palawan Barangays and Municipalities.</div>
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-map-location-dot text-danger me-1"></i> Deployment Location</label>
+                            <input type="text" id="deployment_location_input" name="deployment_location" class="form-control" placeholder="Search Palawan locations..." autocomplete="off" required>
+                            <div class="form-text small text-muted"><i class="fa-solid fa-location-crosshairs text-success me-1"></i> Palawan locations only.</div>
                         </div>
 
                         <!-- PURPOSE OF DEPLOYMENT SELECT SELECTION -->
                         <div class="mb-3">
-                            <label class="form-label fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Purpose of Deployment / Operational Mission</label>
+                            <label class="form-label fw-semibold"><i class="fa-solid fa-bullseye text-warning me-1"></i> Mission Purpose</label>
                             <select id="deployment_purpose_input" name="deployment_purpose" class="form-select" required>
-                                <option value="" disabled selected>-- Select Deployment Purpose / Mission --</option>
+                                <option value="" disabled selected>-- Select mission --</option>
                                 <option value="Disaster Relief &amp; Supplies Delivery">Disaster Relief &amp; Supplies Delivery</option>
                                 <option value="Emergency Search &amp; Rescue (WASAR/USAR)">Emergency Search &amp; Rescue (WASAR/USAR)</option>
                                 <option value="Medical Evacuation &amp; Emergency Transport">Medical Evacuation &amp; Emergency Transport</option>
@@ -603,7 +776,6 @@
                                 <option value="Training &amp; Simulation Exercise">Training &amp; Simulation Exercise</option>
                                 <option value="Other Emergency Mission">Other Emergency Mission</option>
                             </select>
-                            <div class="form-text small text-muted">Select the official mission objective for this outbound dispatch.</div>
                         </div>
 
                         <div class="mb-3">
@@ -613,7 +785,7 @@
                     </div>
                     <div class="modal-footer bg-light">
                         <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-sm btn-orange"><i class="fa-solid fa-check-circle"></i> Confirm Outbound Dispatch</button>
+                        <button type="submit" class="btn btn-sm btn-orange"><i class="fa-solid fa-check-circle"></i> Dispatch</button>
                     </div>
                 </form>
             </div>
@@ -621,38 +793,102 @@
     </div>
 
     <!-- MODAL: ONBOARD NEW VEHICLE -->
-    <div class="modal fade" id="addVehicleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal fade" id="addVehicleModal" tabindex="-1" aria-labelledby="addVehicleModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header text-white" style="background-color: #1A365D;">
-                    <h5 class="modal-title fw-bold"><i class="fa-solid fa-plus-circle text-info"></i> Onboard New Fleet Asset Entry</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <h5 class="modal-title fw-bold" id="addVehicleModalLabel"><i class="fa-solid fa-plus-circle text-info me-2"></i>Add a fleet asset</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <form method="POST" action="{% url 'dashboard_portal:logistics_dashboard' %}">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="add_vehicle">
+                    <input type="hidden" id="assetCount" name="asset_count" value="1">
                     <div class="modal-body bg-white">
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Model / Equipment Nomenclature Name</label>
-                            <input type="text" id="onboard-model" name="model_name" class="form-control" placeholder="e.g., Toyota Hiace ALS Ambulance" required>
+                        <div id="assetRegistrationEntries">
+                        {% for asset_registration_form in asset_registration_forms %}
+                        <section class="asset-registration-entry border rounded p-3 mb-3" data-asset-entry>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <strong data-entry-title>Asset {{ forloop.counter }}</strong>
+                                <button type="button" class="btn btn-sm btn-outline-danger" data-remove-asset hidden>Remove</button>
+                            </div>
+                            <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.model_name.id_for_label }}">{{ asset_registration_form.model_name.label }}</label>
+                                {{ asset_registration_form.model_name }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.plate_number.id_for_label }}">{{ asset_registration_form.plate_number.label }}</label>
+                                {{ asset_registration_form.plate_number }}
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.vehicle_type.id_for_label }}">{{ asset_registration_form.vehicle_type.label }}</label>
+                                {{ asset_registration_form.vehicle_type }}
+                            </div>
+                            <div class="col-12" data-asset-fields="land">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.make.id_for_label }}">{{ asset_registration_form.make.label }}</label>
+                                        {{ asset_registration_form.make }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.model_year.id_for_label }}">{{ asset_registration_form.model_year.label }}</label>
+                                        {{ asset_registration_form.model_year }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.color.id_for_label }}">{{ asset_registration_form.color.label }}</label>
+                                        {{ asset_registration_form.color }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.odometer_km.id_for_label }}">{{ asset_registration_form.odometer_km.label }}</label>
+                                        {{ asset_registration_form.odometer_km }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12" data-asset-fields="sea" hidden>
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.hull_type.id_for_label }}">{{ asset_registration_form.hull_type.label }}</label>
+                                        {{ asset_registration_form.hull_type }}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-semibold" for="{{ asset_registration_form.length_m.id_for_label }}">{{ asset_registration_form.length_m.label }}</label>
+                                        {{ asset_registration_form.length_m }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.engine_details.id_for_label }}">{{ asset_registration_form.engine_details.label }}</label>
+                                {{ asset_registration_form.engine_details }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.fuel_type.id_for_label }}">{{ asset_registration_form.fuel_type.label }}</label>
+                                {{ asset_registration_form.fuel_type }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.passenger_capacity.id_for_label }}">Seating / passenger capacity</label>
+                                {{ asset_registration_form.passenger_capacity }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.registration_expiry.id_for_label }}">{{ asset_registration_form.registration_expiry.label }}</label>
+                                {{ asset_registration_form.registration_expiry }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-semibold" for="{{ asset_registration_form.inspection_expiry.id_for_label }}">{{ asset_registration_form.inspection_expiry.label }}</label>
+                                {{ asset_registration_form.inspection_expiry }}
+                            </div>
+                            </div>
+                        </section>
+                        {% endfor %}
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Plate Number / Hull ID Tag</label>
-                            <input type="text" id="onboard-plate" name="plate_number" class="form-control" placeholder="e.g., PDR-ALS-02" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label fw-semibold">Dynamic Admin Classification Category</label>
-                            <select name="vehicle_type" class="form-select" required>
-                                <option value="" disabled selected>Select registered type category</option>
-                                {% for type in types %}
-                                <option value="{{ type.id }}">{{ type.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="addAssetEntry">
+                            <i class="fa-solid fa-plus me-1"></i>Add another asset
+                        </button>
+                        <div class="form-text mt-2">Add up to 20 assets in one submission.</div>
                     </div>
                     <div class="modal-footer bg-light">
-                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-sm btn-orange"><i class="fa-solid fa-check-circle"></i> Commit to DB Registry</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-orange"><i class="fa-solid fa-check-circle me-1"></i>Register assets</button>
                     </div>
                 </form>
             </div>
@@ -710,6 +946,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'fleet/js/dashboard_views.js' %}"></script>
     <script src="{% static 'fleet/js/dashboard_print.js' %}"></script>
+    <script src="{% static 'fleet/js/activity_report.js' %}"></script>
 
     <script>
         window.gm_authFailure = function() {
@@ -772,6 +1009,63 @@
 
     <script>
         document.addEventListener("DOMContentLoaded", function () {
+            const assetEntries = document.getElementById('assetRegistrationEntries');
+            const assetCount = document.getElementById('assetCount');
+            const updateAssetFields = function (entry) {
+                const assetType = entry.querySelector('select[name$="-vehicle_type"]');
+                if (!assetType) return;
+                const seaAsset = ['marine', 'maritime'].includes(
+                    assetType.options[assetType.selectedIndex]?.text.trim().toLowerCase()
+                );
+                entry.querySelectorAll('[data-asset-fields]').forEach(function (group) {
+                    const active = group.dataset.assetFields === (seaAsset ? 'sea' : 'land');
+                    group.hidden = !active;
+                    group.querySelectorAll('input, select, textarea').forEach(function (field) {
+                        field.disabled = !active;
+                    });
+                });
+            };
+            const renumberAssetEntries = function () {
+                const entries = assetEntries.querySelectorAll('[data-asset-entry]');
+                entries.forEach(function (entry, index) {
+                    entry.querySelectorAll('[name], [id], label[for]').forEach(function (element) {
+                        ['name', 'id', 'for'].forEach(function (attribute) {
+                            const value = element.getAttribute(attribute);
+                            if (value) element.setAttribute(attribute, value.replace(/asset-\d+/, 'asset-' + index));
+                        });
+                    });
+                    entry.querySelector('[data-entry-title]').textContent = 'Asset ' + (index + 1);
+                    const removeButton = entry.querySelector('[data-remove-asset]');
+                    removeButton.hidden = entries.length === 1;
+                    updateAssetFields(entry);
+                });
+                assetCount.value = entries.length;
+            };
+            assetEntries.addEventListener('change', function (event) {
+                if (event.target.matches('select[name$="-vehicle_type"]')) {
+                    updateAssetFields(event.target.closest('[data-asset-entry]'));
+                }
+            });
+            document.getElementById('addAssetEntry').addEventListener('click', function () {
+                const entries = assetEntries.querySelectorAll('[data-asset-entry]');
+                if (entries.length >= 20) return;
+                const clone = entries[entries.length - 1].cloneNode(true);
+                clone.querySelectorAll('input, select, textarea').forEach(function (field) {
+                    if (field.type === 'checkbox' || field.type === 'radio') field.checked = false;
+                    else field.value = '';
+                });
+                assetEntries.appendChild(clone);
+                renumberAssetEntries();
+            });
+            assetEntries.addEventListener('click', function (event) {
+                const button = event.target.closest('[data-remove-asset]');
+                if (button) {
+                    button.closest('[data-asset-entry]').remove();
+                    renumberAssetEntries();
+                }
+            });
+            renumberAssetEntries();
+
             const savedScroll = localStorage.getItem('logistics_dashboard_scroll');
             if (savedScroll !== null) {
                 window.scrollTo(0, parseInt(savedScroll, 10));
@@ -797,6 +1091,74 @@
                     }
                 });
             });
+
+            const operatorType = document.getElementById('id_operator_type');
+            const authorityHint = document.getElementById('operator-authority-hint');
+            if (operatorType && authorityHint) {
+                const updateAuthorityHint = () => {
+                    const authority = operatorType.value === 'SEA' ? 'MARINA' : 'LTO';
+                    const category = operatorType.options[operatorType.selectedIndex].text;
+                    authorityHint.textContent = `${category} license authority: ${authority} (automatic).`;
+                };
+                operatorType.addEventListener('change', updateAuthorityHint);
+                updateAuthorityHint();
+            }
+
+            const logisticsMenuDrawer = document.getElementById('logisticsMenuDrawer');
+            if (logisticsMenuDrawer) {
+                logisticsMenuDrawer.querySelectorAll('[data-menu-action]').forEach(button => {
+                    button.addEventListener('click', function () {
+                        logisticsMenuDrawer.dataset.pendingAction = this.dataset.menuAction;
+                        bootstrap.Offcanvas.getOrCreateInstance(logisticsMenuDrawer).hide();
+                    });
+                });
+
+                logisticsMenuDrawer.addEventListener('hidden.bs.offcanvas', function () {
+                    const action = logisticsMenuDrawer.dataset.pendingAction;
+                    delete logisticsMenuDrawer.dataset.pendingAction;
+
+                    if (action === 'print') {
+                        window.print();
+                        return;
+                    }
+
+                    if (action === 'view-incidents') {
+                        document.getElementById('filedIncidentReports').scrollIntoView({ behavior: 'smooth' });
+                        return;
+                    }
+
+                    const modalTargets = {
+                        'add-operator': '#addOperatorModal',
+                        'add-asset': '#addVehicleModal',
+                        'generate-report': '#generateReportModal',
+                        'file-incident': '#fleetIncidentModal'
+                    };
+                    if (modalTargets[action]) {
+                        const modalElement = document.querySelector(modalTargets[action]);
+                        bootstrap.Modal.getOrCreateInstance(modalElement).show();
+                        return;
+                    }
+
+                    if (action === 'print-incident') {
+                        openIncidentExports();
+                        return;
+                    }
+
+                    if (action === 'operators') {
+                        const assignmentDrawer = document.getElementById('operatorAssignmentDrawer');
+                        bootstrap.Offcanvas.getOrCreateInstance(assignmentDrawer).show();
+                    }
+                });
+            }
+
+            function openIncidentExports() {
+                const reportKind = document.getElementById('report-kind');
+                reportKind.value = 'incident';
+                reportKind.dispatchEvent(new Event('change'));
+                bootstrap.Modal.getOrCreateInstance(
+                    document.getElementById('generateReportModal')
+                ).show();
+            }
 
             document.querySelectorAll('form').forEach(form => {
                 form.addEventListener('submit', function () {

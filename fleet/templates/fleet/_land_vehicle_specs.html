@@ -1,0 +1,15 @@
+{% if vehicle.make or vehicle.model_year or vehicle.color or vehicle.engine_details or vehicle.fuel_type or vehicle.passenger_capacity or vehicle.odometer_km or vehicle.registration_expiry or vehicle.inspection_expiry %}
+<div class="small text-muted mt-1">
+    {% if vehicle.make or vehicle.model_year or vehicle.color %}
+        {% if vehicle.make %}{{ vehicle.make }}{% endif %}
+        {% if vehicle.model_year %}{% if vehicle.make %} · {% endif %}{{ vehicle.model_year }}{% endif %}
+        {% if vehicle.color %}{% if vehicle.make or vehicle.model_year %} · {% endif %}{{ vehicle.color }}{% endif %}
+    {% endif %}
+    {% if vehicle.engine_details %}<br>Engine: {{ vehicle.engine_details }}{% endif %}
+    {% if vehicle.fuel_type %}{% if vehicle.engine_details %} · {% else %}<br>{% endif %}{{ vehicle.fuel_type }}{% endif %}
+    {% if vehicle.passenger_capacity %}<br>Seats: {{ vehicle.passenger_capacity }}{% endif %}
+    {% if vehicle.odometer_km is not None %}{% if vehicle.passenger_capacity %} · {% else %}<br>{% endif %}{{ vehicle.odometer_km }} km{% endif %}
+    {% if vehicle.registration_expiry %}<br>Registration due {{ vehicle.registration_expiry|date:"M Y" }}{% endif %}
+    {% if vehicle.inspection_expiry %}{% if vehicle.registration_expiry %} · {% else %}<br>{% endif %}Inspection due {{ vehicle.inspection_expiry|date:"M Y" }}{% endif %}
+</div>
+{% endif %}

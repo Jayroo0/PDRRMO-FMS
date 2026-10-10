@@ -1,0 +1,79 @@
+<div class="modal fade" id="generateReportModal" tabindex="-1" aria-labelledby="generateReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: #1A365D;">
+                <h5 class="modal-title fw-bold" id="generateReportModalLabel">
+                    <i class="fa-solid fa-file-export text-info me-2"></i>Generate Fleet Report
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="get" action="{% url 'dashboard_portal:fleet_activity_report' %}" id="generateReportForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="report-kind" class="form-label fw-semibold">Report</label>
+                        <select id="report-kind" name="report_kind" class="form-select" required>
+                            <option value="activity">Deployment and return activity</option>
+                            <option value="maintenance">Maintenance</option>
+                            <option value="damage">Damage and fault reports</option>
+                            <option value="incident">Incident reports</option>
+                        </select>
+                    </div>
+                    <div class="mb-3 d-none" id="maintenance-category-field">
+                        <label for="maintenance-category" class="form-label fw-semibold">Maintenance type</label>
+                        <select id="maintenance-category" name="maintenance_category" class="form-select">
+                            <option value="all">All maintenance</option>
+                            <option value="regular">Regular maintenance (tires and oil)</option>
+                            <option value="other">Other maintenance and repairs</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="report-period" class="form-label fw-semibold">Reporting period</label>
+                        <select id="report-period" name="period" class="form-select" required>
+                            <option value="month">Monthly</option>
+                            <option value="week">Weekly</option>
+                            <option value="day">Daily</option>
+                            <option value="custom">Custom date range</option>
+                        </select>
+                    </div>
+                    <div class="mb-3 report-date-field" data-period="month">
+                        <label for="report-month" class="form-label fw-semibold">Month</label>
+                        <input type="month" id="report-month" name="month" class="form-control" value="{% now 'Y-m' %}" required>
+                    </div>
+                    <div class="mb-3 report-date-field d-none" data-period="week">
+                        <label for="report-week" class="form-label fw-semibold">Week</label>
+                        <input type="week" id="report-week" name="week" class="form-control" disabled>
+                    </div>
+                    <div class="mb-3 report-date-field d-none" data-period="day">
+                        <label for="report-day" class="form-label fw-semibold">Day</label>
+                        <input type="date" id="report-day" name="day" class="form-control" disabled>
+                    </div>
+                    <div class="report-date-field d-none" data-period="custom">
+                        <div class="mb-3">
+                            <label for="report-start-date" class="form-label fw-semibold">Start date</label>
+                            <input type="date" id="report-start-date" name="start_date" class="form-control" disabled>
+                        </div>
+                        <div class="mb-3">
+                            <label for="report-end-date" class="form-label fw-semibold">End date</label>
+                            <input type="date" id="report-end-date" name="end_date" class="form-control" disabled>
+                        </div>
+                    </div>
+                    <div class="border-top pt-3 mt-3">
+                        <button type="button" class="btn btn-outline-danger" data-open-incident-report>
+                            <i class="fa-solid fa-triangle-exclamation me-1"></i>File incident
+                        </button>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light d-flex flex-wrap justify-content-between">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="submit" name="format" value="print" class="btn btn-primary fw-semibold"><i class="fa-solid fa-print me-1"></i>Print</button>
+                        <button type="submit" name="format" value="csv" class="btn btn-outline-primary fw-semibold"><i class="fa-solid fa-file-csv me-1"></i>CSV</button>
+                        <button type="submit" name="format" value="xlsx" class="btn btn-success fw-semibold"><i class="fa-solid fa-file-excel me-1"></i>Excel</button>
+                        <button type="submit" name="format" value="pdf" class="btn btn-danger fw-semibold"><i class="fa-solid fa-file-pdf me-1"></i>PDF</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% include "fleet/_fleet_incident_modal.html" %}

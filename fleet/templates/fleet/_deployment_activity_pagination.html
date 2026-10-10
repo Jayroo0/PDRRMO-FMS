@@ -1,0 +1,15 @@
+{% if deployment_page.has_other_pages %}
+<div class="card-footer bg-white d-flex justify-content-between align-items-center">
+    <span class="small text-muted">Page {{ deployment_page.number }} of {{ deployment_page.paginator.num_pages }}</span>
+    <nav aria-label="Deployment activity pages">
+        <ul class="pagination pagination-sm mb-0">
+            {% if deployment_page.has_previous %}
+            <li class="page-item"><a class="page-link" href="?page={{ deployment_page.previous_page_number }}">Previous</a></li>
+            {% endif %}
+            {% if deployment_page.has_next %}
+            <li class="page-item"><a class="page-link" href="?page={{ deployment_page.next_page_number }}">Next</a></li>
+            {% endif %}
+        </ul>
+    </nav>
+</div>
+{% endif %}

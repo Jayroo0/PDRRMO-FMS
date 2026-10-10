@@ -1,0 +1,73 @@
+<div class="modal fade" id="fleetIncidentModal" tabindex="-1" aria-labelledby="fleetIncidentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: #1A365D;">
+                <h5 class="modal-title fw-bold" id="fleetIncidentModalLabel">
+                    <i class="fa-solid fa-triangle-exclamation text-warning me-2"></i>Report a fleet incident
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" action="{% url 'dashboard_portal:fleet_report_incident' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="alert alert-info py-2 small">
+                        <i class="fa-solid fa-circle-info me-1"></i>
+                        Assigned driver is recorded automatically.
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="{{ incident_form.vehicle.id_for_label }}">{{ incident_form.vehicle.label }}</label>
+                            {{ incident_form.vehicle }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="{{ incident_form.incident_type.id_for_label }}">{{ incident_form.incident_type.label }}</label>
+                            {{ incident_form.incident_type }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="{{ incident_form.occurred_at.id_for_label }}">{{ incident_form.occurred_at.label }}</label>
+                            {{ incident_form.occurred_at }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="{{ incident_form.location.id_for_label }}">{{ incident_form.location.label }}</label>
+                            {{ incident_form.location }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="{{ incident_form.description.id_for_label }}">{{ incident_form.description.label }}</label>
+                            {{ incident_form.description }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="{{ incident_form.damage_details.id_for_label }}">{{ incident_form.damage_details.label }}</label>
+                            {{ incident_form.damage_details }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="{{ incident_form.injury_status.id_for_label }}">{{ incident_form.injury_status.label }}</label>
+                            {{ incident_form.injury_status }}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold" for="{{ incident_form.injury_details.id_for_label }}">{{ incident_form.injury_details.label }}</label>
+                            {{ incident_form.injury_details }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="{{ incident_form.witnesses.id_for_label }}">{{ incident_form.witnesses.label }}</label>
+                            {{ incident_form.witnesses }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="{{ incident_form.actions_taken.id_for_label }}">{{ incident_form.actions_taken.label }}</label>
+                            {{ incident_form.actions_taken }}
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold" for="{{ incident_form.follow_up_recommendations.id_for_label }}">{{ incident_form.follow_up_recommendations.label }}</label>
+                            {{ incident_form.follow_up_recommendations }}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger fw-semibold">
+                        <i class="fa-solid fa-paper-plane me-1"></i>Submit incident report
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

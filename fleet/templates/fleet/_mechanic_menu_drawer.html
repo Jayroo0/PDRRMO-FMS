@@ -1,0 +1,41 @@
+<div class="offcanvas offcanvas-end" tabindex="-1" id="mechanicMenuDrawer" aria-labelledby="mechanicMenuDrawerLabel">
+    <div class="offcanvas-header text-white" style="background-color: #1A365D;">
+        <div>
+            <h5 class="offcanvas-title fw-bold mb-1" id="mechanicMenuDrawerLabel">
+                <i class="fa-solid fa-bars-staggered text-info me-2"></i>Maintenance Menu
+            </h5>
+            {% if user.is_authenticated %}
+            <div class="small text-white-50"><i class="fa-solid fa-user-shield me-1"></i>{{ user.username }}</div>
+            {% endif %}
+        </div>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close menu"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column gap-2 bg-light">
+        <div class="small text-muted border rounded bg-white p-3 mb-2">
+            <i class="fa-solid fa-screwdriver-wrench text-success me-2"></i>Maintenance Workbench
+        </div>
+        <button type="button" class="btn btn-outline-danger text-start fw-semibold mechanic-menu-action" data-menu-action="file-incident">
+            <i class="fa-solid fa-triangle-exclamation me-2"></i>File Incident Report
+        </button>
+        <button type="button" class="btn btn-outline-primary text-start fw-semibold mechanic-menu-action" data-menu-action="print-incident">
+            <i class="fa-solid fa-print me-2"></i>Print Incident Report
+        </button>
+        <button type="button" class="btn btn-outline-info text-start fw-semibold mechanic-menu-action" data-menu-action="view-incidents">
+            <i class="fa-solid fa-list-check me-2"></i>View My Filed Incident Reports
+        </button>
+        <button type="button" class="btn btn-outline-success text-start fw-semibold mechanic-menu-action" data-menu-action="generate-report">
+            <i class="fa-solid fa-file-export me-2"></i>Generate Report
+        </button>
+        <button type="button" class="btn btn-outline-secondary text-start fw-semibold mechanic-menu-action" data-menu-action="print">
+            <i class="fa-solid fa-print me-2"></i>Print Dashboard
+        </button>
+        <div class="mt-auto pt-3 border-top">
+            <form action="{% url 'dashboard_portal:custom_logout' %}" method="post" class="m-0">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-outline-danger fw-bold w-100 text-start">
+                    <i class="fa-solid fa-right-from-bracket me-2"></i>Log Out
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
